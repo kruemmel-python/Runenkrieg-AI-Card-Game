@@ -1,9 +1,82 @@
 
 import React, { useState, useCallback } from 'react';
-import { RoundResult } from '../types';
+import { RoundResult, SimulationAnalysis, TrainingAnalysis } from '../types';
 import { simulateGames, trainModel } from '../services/trainingService';
 import { setTrainedModel, isAiTrained } from '../services/aiService';
 import Spinner from './Spinner';
+
+const getMostFrequent = <T,>(items: T[]): T | null => {
+  if (items.length === 0) {
+    return null;
+  }
+
+  const counts = new Map<T, number>();
+  let bestItem: T | null = null;
+  let bestCount = 0;
+
+  for (const item of items) {
+    const newCount = (counts.get(item) ?? 0) + 1;
+    counts.set(item, newCount);
+    if (newCount > bestCount) {
+      bestCount = newCount;
+      bestItem = item;
+    }
+  }
+
+  return bestItem;
+};
+
+const buildSimulationAnalysis = (data: RoundResult[]): SimulationAnalysis => {
+  if (data.length === 0) {
+    return {
+      totalRounds: 0,
+      playerWins: 0,
+      aiWins: 0,
+      draws: 0,
+      playerWinRate: 0,
+      aiWinRate: 0,
+      averagePlayerTokens: 0,
+      averageAiTokens: 0,
+      mostCommonPlayerCard: null,
+      mostCommonAiCard: null,
+      mostCommonWeather: null,
+      mostCommonPlayerHero: null,
+      mostCommonAiHero: null,
+    };
+  }
+
+  const totalRounds = data.length;
+  let playerWins = 0;
+  let aiWins = 0;
+  let draws = 0;
+  let playerTokenSum = 0;
+  let aiTokenSum = 0;
+
+  for (const round of data) {
+    if (round.gewinner === 'spieler') playerWins += 1;
+    if (round.gewinner === 'gegner') aiWins += 1;
+    if (round.gewinner === 'unentschieden') draws += 1;
+
+    playerTokenSum += round.spieler_token;
+    aiTokenSum += round.gegner_token;
+  }
+
+  return {
+    totalRounds,
+    playerWins,
+    aiWins,
+    draws,
+    playerWinRate: playerWins / totalRounds,
+    aiWinRate: aiWins / totalRounds,
+    averagePlayerTokens: playerTokenSum / totalRounds,
+    averageAiTokens: aiTokenSum / totalRounds,
+    mostCommonPlayerCard: getMostFrequent(data.map((round) => round.spieler_karte)),
+    mostCommonAiCard: getMostFrequent(data.map((round) => round.gegner_karte)),
+    mostCommonWeather: getMostFrequent(data.map((round) => round.wetter)) ?? null,
+    mostCommonPlayerHero: getMostFrequent(data.map((round) => round.spieler_held)) ?? null,
+    mostCommonAiHero: getMostFrequent(data.map((round) => round.gegner_held)) ?? null,
+  };
+};
 
 const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') => void }> = ({ onSwitchView }) => {
   const [simulationCount, setSimulationCount] = useState<number>(1000);
@@ -11,14 +84,22 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [isTraining, setIsTraining] = useState<boolean>(false);
   const [aiStatus, setAiStatus] = useState<string>(isAiTrained() ? 'KI ist trainiert und aktiv.' : 'KI nutzt zufällige Züge.');
+  const [simulationAnalysis, setSimulationAnalysis] = useState<SimulationAnalysis | null>(null);
+  const [trainingAnalysis, setTrainingAnalysis] = useState<TrainingAnalysis | null>(null);
+
+  const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
+  const formatNumber = (value: number) => value.toLocaleString('de-DE');
   
   const handleSimulate = useCallback(() => {
     setIsSimulating(true);
     setSimulationData([]);
+    setSimulationAnalysis(null);
+    setTrainingAnalysis(null);
     // Use timeout to allow UI to update before blocking
     setTimeout(() => {
         const data = simulateGames(simulationCount);
         setSimulationData(data);
+        setSimulationAnalysis(buildSimulationAnalysis(data));
         setIsSimulating(false);
     }, 50);
   }, [simulationCount]);
@@ -33,6 +114,7 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
     setTimeout(() => {
         const model = trainModel(simulationData);
         setTrainedModel(model);
+        setTrainingAnalysis(model.analysis);
         setAiStatus('KI wurde mit neuen Daten trainiert und ist aktiv.');
         setIsTraining(false);
     }, 50);
@@ -97,6 +179,81 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
             </div>
         </div>
         
+        {simulationAnalysis && (
+            <div className="mt-8 bg-slate-800 p-6 rounded-lg">
+                <h3 className="text-2xl font-bold mb-4 text-cyan-300">Simulationsanalyse</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-300">
+                    <div>
+                        <span className="font-semibold text-white">Gesamte Runden:</span> {formatNumber(simulationAnalysis.totalRounds)}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Spieler Siegquote:</span> {formatPercent(simulationAnalysis.playerWinRate)}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">KI Siegquote:</span> {formatPercent(simulationAnalysis.aiWinRate)}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Unentschieden:</span> {formatPercent(simulationAnalysis.totalRounds > 0 ? simulationAnalysis.draws / simulationAnalysis.totalRounds : 0)}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Ø Spieler-Token nach Runden:</span> {simulationAnalysis.averagePlayerTokens.toFixed(2)}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Ø KI-Token nach Runden:</span> {simulationAnalysis.averageAiTokens.toFixed(2)}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Häufigste Spielerkarte:</span> {simulationAnalysis.mostCommonPlayerCard ?? '–'}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Häufigste KI-Karte:</span> {simulationAnalysis.mostCommonAiCard ?? '–'}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Beliebtestes Wetter:</span> {simulationAnalysis.mostCommonWeather ?? '–'}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Spielerheld (häufig):</span> {simulationAnalysis.mostCommonPlayerHero ?? '–'}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">KI-Held (häufig):</span> {simulationAnalysis.mostCommonAiHero ?? '–'}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {trainingAnalysis && (
+            <div className="mt-8 bg-slate-800 p-6 rounded-lg">
+                <h3 className="text-2xl font-bold mb-4 text-green-300">Trainingsanalyse</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-300">
+                    <div>
+                        <span className="font-semibold text-white">Kontexte insgesamt:</span> {formatNumber(trainingAnalysis.totalContexts)}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Gut abgedeckte Kontexte:</span> {formatNumber(trainingAnalysis.contextsWithSolidData)}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Kontexte mit wenig Daten:</span> {formatNumber(trainingAnalysis.contextsNeedingData)}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Ø beste Siegquote:</span> {formatPercent(trainingAnalysis.averageBestWinRate)}
+                    </div>
+                </div>
+                {trainingAnalysis.bestContext && (
+                    <div className="mt-4 p-4 bg-slate-900 rounded-lg text-slate-200">
+                        <p className="font-semibold text-white mb-2">Stärkstes Szenario</p>
+                        <p>
+                            Spielerkarte <span className="text-purple-300">{trainingAnalysis.bestContext.playerCard}</span> bei Wetter{' '}
+                            <span className="text-purple-300">{trainingAnalysis.bestContext.weather}</span> wird am besten mit{' '}
+                            <span className="text-purple-300">{trainingAnalysis.bestContext.aiCard}</span> beantwortet.
+                        </p>
+                        <p>
+                            Siegquote: <span className="text-green-400">{formatPercent(trainingAnalysis.bestContext.winRate)}</span> auf Grundlage von{' '}
+                            {formatNumber(trainingAnalysis.bestContext.observations)} Beobachtungen.
+                        </p>
+                    </div>
+                )}
+            </div>
+        )}
+
         <div className="mt-8 text-center">
             <button onClick={() => onSwitchView('game')} className="bg-slate-600 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-lg text-lg">
                 Zurück zum Spiel

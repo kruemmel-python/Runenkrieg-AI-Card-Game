@@ -29,8 +29,39 @@ export interface RoundResult {
   gewinner: Winner;
 }
 
+export interface SimulationAnalysis {
+  totalRounds: number;
+  playerWins: number;
+  aiWins: number;
+  draws: number;
+  playerWinRate: number;
+  aiWinRate: number;
+  averagePlayerTokens: number;
+  averageAiTokens: number;
+  mostCommonPlayerCard: string | null;
+  mostCommonAiCard: string | null;
+  mostCommonWeather: WeatherType | null;
+  mostCommonPlayerHero: HeroName | null;
+  mostCommonAiHero: HeroName | null;
+}
+
+export interface TrainingAnalysis {
+  totalContexts: number;
+  contextsWithSolidData: number;
+  contextsNeedingData: number;
+  averageBestWinRate: number;
+  bestContext?: {
+    playerCard: string;
+    weather: WeatherType;
+    aiCard: string;
+    winRate: number;
+    observations: number;
+  };
+}
+
 export interface TrainedModel {
   predict: (playerCard: Card, aiHand: Card[], gameState: any) => Card;
+  analysis: TrainingAnalysis;
 }
 
 export interface GameHistoryEntry {

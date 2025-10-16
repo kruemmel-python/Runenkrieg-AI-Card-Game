@@ -1,4 +1,4 @@
-import { Card, ElementType, RoundResult, TrainedModel, ValueType, WeatherType, Winner, HeroName } from '../types';
+import { Card, ElementType, RoundResult, TrainedModel, ValueType, WeatherType, Winner, HeroName, TrainingAnalysis } from '../types';
 import { ELEMENTS, ABILITIES, WEATHER_EFFECTS, ELEMENT_HIERARCHIE, HEROES } from '../constants';
 
 // --- Simulation Logic (now mirrors real game logic) ---
@@ -140,6 +140,59 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         }
     }
 
+    let contextsWithSolidData = 0;
+    let winRateSum = 0;
+    let contextsWithBestCard = 0;
+    let bestContext: TrainingAnalysis['bestContext'] | undefined = undefined;
+
+    for (const [contextKey, aiCardMap] of modelData.entries()) {
+        let bestCardKey: string | null = null;
+        let bestStats: { wins: number; total: number } | null = null;
+        let bestWinRate = -1;
+
+        for (const [cardKey, stats] of aiCardMap.entries()) {
+            if (stats.total === 0) continue;
+            const winRate = stats.wins / stats.total;
+            if (winRate > bestWinRate) {
+                bestWinRate = winRate;
+                bestCardKey = cardKey;
+                bestStats = stats;
+            }
+        }
+
+        if (bestStats && bestCardKey) {
+            contextsWithBestCard += 1;
+            winRateSum += bestWinRate;
+            if (bestStats.total >= 5) {
+                contextsWithSolidData += 1;
+            }
+
+            if (!bestContext || bestWinRate > bestContext.winRate) {
+                const [playerCard, weatherString] = contextKey.split('|');
+                const weather = weatherString as WeatherType;
+                bestContext = {
+                    playerCard,
+                    weather,
+                    aiCard: bestCardKey,
+                    winRate: bestWinRate,
+                    observations: bestStats.total,
+                };
+            }
+        }
+    }
+
+    const totalContexts = modelData.size;
+    const contextsNeedingData = Math.max(0, totalContexts - contextsWithSolidData);
+    const averageBestWinRate = contextsWithBestCard > 0 ? winRateSum / contextsWithBestCard : 0;
+
+    const analysis: TrainingAnalysis = {
+        totalContexts,
+        contextsWithSolidData,
+        contextsNeedingData,
+        averageBestWinRate,
+        bestContext,
+    };
+
     const predict = (playerCard: Card, aiHand: Card[], gameState: any): Card => {
         // UPDATED: Use weather from gameState for context
         const contextKey = `${playerCard.element} ${playerCard.wert}|${gameState.weather}`;
@@ -176,5 +229,5 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         return bestCard;
     };
 
-    return { predict };
+    return { predict, analysis };
 }
