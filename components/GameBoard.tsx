@@ -8,9 +8,22 @@ import Spinner from './Spinner';
 
 const GameBoard: React.FC<{ onSwitchView: (view: 'game' | 'training') => void }> = ({ onSwitchView }) => {
     const {
-        playerHand, aiHand, playerTokens, aiTokens, playerHero, aiHero,
-        playerCard, aiCard, weather, roundWinner, gamePhase, statusText, gameHistory,
-        playCard, startGame
+        playerHand,
+        aiHand,
+        playerTokens,
+        aiTokens,
+        playerHero,
+        aiHero,
+        playerCard,
+        aiCard,
+        weather,
+        roundWinner,
+        gamePhase,
+        statusText,
+        gameHistory,
+        fusionSelectionId,
+        playCard,
+        startGame,
     } = useGameLogic();
     
     const [story, setStory] = useState('');
@@ -194,14 +207,22 @@ const GameBoard: React.FC<{ onSwitchView: (view: 'game' | 'training') => void }>
 
             {/* Player Hand */}
             <div className="flex justify-center items-center space-x-2 h-60">
-                {playerHand.map((card, index) => (
-                    <Card 
-                        key={card.id} 
-                        card={card} 
-                        onClick={() => playCard(index)}
-                        className={gamePhase === 'playerTurn' ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}
-                    />
-                ))}
+                {playerHand.map((card) => {
+                    const isSelected = fusionSelectionId === card.id;
+                    const fusionSelectionActive = fusionSelectionId !== null;
+                    const disallowForFusion = fusionSelectionActive && !isSelected && !card.mechanics.includes('Fusion');
+                    const disabled = gamePhase !== 'playerTurn' || disallowForFusion;
+
+                    return (
+                        <Card
+                            key={card.id}
+                            card={card}
+                            onClick={() => playCard(card.id)}
+                            isSelected={isSelected}
+                            disabled={disabled}
+                        />
+                    );
+                })}
             </div>
 
             {/* Bottom Bar: Player Info & Status */}
