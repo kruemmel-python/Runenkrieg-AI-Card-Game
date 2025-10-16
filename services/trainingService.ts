@@ -1,27 +1,143 @@
-import { Card, ElementType, RoundResult, TrainedModel, ValueType, WeatherType, Winner, HeroName, TrainingAnalysis } from '../types';
-import { ELEMENTS, ABILITIES, WEATHER_EFFECTS, ELEMENT_HIERARCHIE, HEROES } from '../constants';
+import {
+    Card,
+    ElementType,
+    RoundResult,
+    TrainedModel,
+    WeatherType,
+    Winner,
+    HeroName,
+    TrainingAnalysis,
+    GameHistoryEntry
+} from '../types';
+import {
+    ELEMENTS,
+    ABILITIES,
+    WEATHER_EFFECTS,
+    ELEMENT_HIERARCHIE,
+    HEROES,
+    CARD_TYPES,
+    ABILITY_MECHANICS,
+    ELEMENT_SYNERGIES
+} from '../constants';
 
 // --- Simulation Logic (now mirrors real game logic) ---
 
-// Helper to calculate value in simulation, mirroring the main game logic
+// Helper to calculate value in simulation, mirroring die aktualisierte Spielmechanik
+function evaluateRiskAndWeather(
+    card: Card,
+    ownTokens: number,
+    opponentTokens: number,
+    currentWeather: WeatherType
+): number {
+    const weatherEffectBonus = (WEATHER_EFFECTS[currentWeather] as Record<ElementType, number>)[card.element] || 0;
+    let adjustment = weatherEffectBonus;
+
+    if (card.mechanics.includes('Überladung')) {
+        const pressure = Math.max(0, opponentTokens - ownTokens);
+        adjustment += pressure >= 2 ? 2 : -1;
+    }
+
+    if (card.mechanics.includes('Wetterbindung')) {
+        adjustment += weatherEffectBonus >= 0 ? weatherEffectBonus + 1 : weatherEffectBonus - 1;
+    }
+
+    if (card.cardType === 'Segen/Fluch') {
+        adjustment += ownTokens < opponentTokens ? 1.5 : -0.5;
+    }
+
+    if (card.cardType === 'Artefakt') {
+        adjustment += 0.5;
+    }
+
+    if (card.cardType === 'Beschwörung' && card.lifespan) {
+        adjustment += Math.max(0, 4 - card.lifespan) * 0.25;
+    }
+
+    return adjustment;
+}
+
+function evaluateElementSynergy(
+    card: Card,
+    handSnapshot: Card[],
+    history: GameHistoryEntry[],
+    owner: 'spieler' | 'gegner'
+): number {
+    let synergyBonus = 0;
+
+    if (card.mechanics.includes('Elementarresonanz')) {
+        const sameElementInPlay = history.filter(entry => {
+            const playedCard = owner === 'spieler' ? entry.playerCard : entry.aiCard;
+            return playedCard?.element === card.element;
+        }).length;
+        const sameElementInHand = handSnapshot.filter(c => c.element === card.element).length;
+        const resonanceStacks = sameElementInPlay + sameElementInHand;
+        if (resonanceStacks >= 2) {
+            synergyBonus += 2 + 0.5 * (resonanceStacks - 2);
+        }
+    }
+
+    ELEMENT_SYNERGIES.forEach(synergy => {
+        if (!synergy.elements.includes(card.element)) return;
+        const otherElement = synergy.elements.find(el => el !== card.element)!;
+        const historyHasOther = history.some(entry => {
+            const ally = owner === 'spieler' ? entry.playerCard : entry.aiCard;
+            return ally?.element === otherElement;
+        });
+        const handHasOther = handSnapshot.some(c => c.element === otherElement);
+        if (historyHasOther || handHasOther) {
+            synergyBonus += synergy.modifier;
+        }
+    });
+
+    if (card.mechanics.includes('Fusion')) {
+        const fusionPartners = handSnapshot.filter(c => c.element !== card.element && c.mechanics.includes('Fusion')).length;
+        if (fusionPartners > 0) {
+            synergyBonus += 1 + fusionPartners * 0.5;
+        }
+    }
+
+    if (card.mechanics.includes('Ketteneffekte')) {
+        const lastEntry = history[history.length - 1];
+        if (lastEntry) {
+            const previousCard = owner === 'spieler' ? lastEntry.playerCard : lastEntry.aiCard;
+            if (previousCard && previousCard.mechanics.includes('Ketteneffekte')) {
+                synergyBonus += 1.5;
+            }
+        }
+    }
+
+    return synergyBonus;
+}
+
 function calculateTotalValueInSim(
     ownCard: Card,
     opponentCard: Card,
     hero: HeroName,
     ownTokens: number,
     opponentTokens: number,
-    currentWeather: WeatherType
+    currentWeather: WeatherType,
+    handSnapshot: Card[],
+    history: GameHistoryEntry[],
+    owner: 'spieler' | 'gegner'
 ): number {
     const baseValue = ABILITIES.indexOf(ownCard.wert);
-    const weatherEffectBonus = (WEATHER_EFFECTS[currentWeather] as Record<ElementType, number>)[ownCard.element] || 0;
+    const weatherRisk = evaluateRiskAndWeather(ownCard, ownTokens, opponentTokens, currentWeather);
     const elementBonus = ELEMENT_HIERARCHIE[ownCard.element]?.[opponentCard.element] ?? 0;
     const heroBonus = HEROES[hero].Element === ownCard.element ? HEROES[hero].Bonus : 0;
     const moraleBonus = Math.min(4, Math.floor(Math.max(0, ownTokens - opponentTokens) / 2));
-    return baseValue + weatherEffectBonus + elementBonus + heroBonus + moraleBonus;
+    const synergyBonus = evaluateElementSynergy(ownCard, handSnapshot, history, owner);
+
+    return baseValue + weatherRisk + elementBonus + heroBonus + moraleBonus + synergyBonus;
 }
 
 // Helper to apply element effects in simulation
-function applyElementEffect(winner: Winner, winnerCard: Card, pTokens: number, aTokens: number): [number, number] {
+function applyElementEffect(
+    winner: Winner,
+    winnerCard: Card,
+    pTokens: number,
+    aTokens: number,
+    historyLength: number
+): [number, number] {
     let newPlayerTokens = pTokens;
     let newAiTokens = aTokens;
     if (winner !== 'unentschieden') {
@@ -32,15 +148,83 @@ function applyElementEffect(winner: Winner, winnerCard: Card, pTokens: number, a
             case "Luft": winner === "spieler" ? newPlayerTokens += 2 : newAiTokens += 2; break;
             case "Blitz": winner === "spieler" ? newPlayerTokens++ : newAiTokens++; break;
             case "Eis": winner === "spieler" ? newAiTokens-- : newPlayerTokens--; break;
+            case "Schatten":
+                if (winner === 'spieler') {
+                    if (newAiTokens > 0) {
+                        newAiTokens--;
+                        newPlayerTokens++;
+                    }
+                } else {
+                    if (newPlayerTokens > 0) {
+                        newPlayerTokens--;
+                        newAiTokens++;
+                    }
+                }
+                break;
+            case "Licht":
+                winner === 'spieler' ? newPlayerTokens += 2 : newAiTokens += 2;
+                break;
+            case "Chaos": {
+                const chaosSwing = (historyLength + 1) % 2 === 0 ? 1 : -1;
+                if (chaosSwing > 0) {
+                    if (winner === 'spieler') {
+                        newPlayerTokens++;
+                        newAiTokens = Math.max(0, newAiTokens - 1);
+                    } else {
+                        newAiTokens++;
+                        newPlayerTokens = Math.max(0, newPlayerTokens - 1);
+                    }
+                } else {
+                    if (winner === 'spieler') {
+                        newPlayerTokens = Math.max(0, newPlayerTokens - 1);
+                        newAiTokens++;
+                    } else {
+                        newAiTokens = Math.max(0, newAiTokens - 1);
+                        newPlayerTokens++;
+                    }
+                }
+                break;
+            }
         }
     }
     return [newPlayerTokens, newAiTokens];
 }
 
 
-function determineWinnerInSim(playerCard: Card, aiCard: Card, playerHero: HeroName, aiHero: HeroName, pTokens: number, aTokens: number, weather: WeatherType): Winner {
-    const playerTotal = calculateTotalValueInSim(playerCard, aiCard, playerHero, pTokens, aTokens, weather);
-    const aiTotal = calculateTotalValueInSim(aiCard, playerCard, aiHero, aTokens, pTokens, weather);
+function determineWinnerInSim(
+    playerCard: Card,
+    aiCard: Card,
+    playerHero: HeroName,
+    aiHero: HeroName,
+    pTokens: number,
+    aTokens: number,
+    weather: WeatherType,
+    playerHandSnapshot: Card[],
+    aiHandSnapshot: Card[],
+    history: GameHistoryEntry[]
+): Winner {
+    const playerTotal = calculateTotalValueInSim(
+        playerCard,
+        aiCard,
+        playerHero,
+        pTokens,
+        aTokens,
+        weather,
+        playerHandSnapshot,
+        history,
+        'spieler'
+    );
+    const aiTotal = calculateTotalValueInSim(
+        aiCard,
+        playerCard,
+        aiHero,
+        aTokens,
+        pTokens,
+        weather,
+        aiHandSnapshot,
+        history,
+        'gegner'
+    );
 
     if (playerTotal > aiTotal) return "spieler";
     if (aiTotal > playerTotal) return "gegner";
@@ -49,11 +233,20 @@ function determineWinnerInSim(playerCard: Card, aiCard: Card, playerHero: HeroNa
 
 function generateDeck(): Card[] {
     const deck: Card[] = [];
-    for (const element of ELEMENTS) {
-        for (const wert of ABILITIES) {
-            deck.push({ element, wert, id: `${element}-${wert}` });
-        }
-    }
+    ELEMENTS.forEach((element, elementIndex) => {
+        ABILITIES.forEach((wert, abilityIndex) => {
+            const cardType = CARD_TYPES[(elementIndex + abilityIndex) % CARD_TYPES.length];
+            deck.push({
+                element,
+                wert,
+                id: `${element}-${wert}-${elementIndex}-${abilityIndex}`,
+                cardType: cardType.name,
+                mechanics: ABILITY_MECHANICS[wert] || [],
+                lifespan: cardType.defaultLifespan,
+                charges: cardType.defaultCharges,
+            });
+        });
+    });
     // Fisher-Yates shuffle
     for (let i = deck.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -79,21 +272,34 @@ export function simulateGames(numGames: number): RoundResult[] {
         const playerHero = heroNames[Math.floor(Math.random() * heroNames.length)];
         const aiHero = heroNames[Math.floor(Math.random() * heroNames.length)];
 
+        const history: GameHistoryEntry[] = [];
+
         while (playerTokens > 0 && aiTokens > 0 && playerHand.length > 0 && aiHand.length > 0) {
             const weather = Object.keys(WEATHER_EFFECTS)[Math.floor(Math.random() * Object.keys(WEATHER_EFFECTS).length)] as WeatherType;
-            
+
             const playerCard = playerHand.splice(Math.floor(Math.random() * playerHand.length), 1)[0];
             const aiCard = aiHand.splice(Math.floor(Math.random() * aiHand.length), 1)[0];
 
             const prePlayerTokens = playerTokens;
             const preAiTokens = aiTokens;
 
-            const winner = determineWinnerInSim(playerCard, aiCard, playerHero, aiHero, playerTokens, aiTokens, weather);
+            const winner = determineWinnerInSim(
+                playerCard,
+                aiCard,
+                playerHero,
+                aiHero,
+                playerTokens,
+                aiTokens,
+                weather,
+                playerHand,
+                aiHand,
+                history
+            );
 
             // UPDATED: Apply accurate element effects
             const winnerCard = winner === 'spieler' ? playerCard : aiCard;
-            [playerTokens, aiTokens] = applyElementEffect(winner, winnerCard, playerTokens, aiTokens);
-            
+            [playerTokens, aiTokens] = applyElementEffect(winner, winnerCard, playerTokens, aiTokens, history.length);
+
             playerTokens = Math.max(0, playerTokens);
             aiTokens = Math.max(0, aiTokens);
 
@@ -108,6 +314,16 @@ export function simulateGames(numGames: number): RoundResult[] {
                 spieler_held: playerHero,
                 gegner_held: aiHero,
                 gewinner: winner,
+            });
+
+            history.push({
+                round: history.length + 1,
+                playerCard,
+                aiCard,
+                weather,
+                winner,
+                playerTokens,
+                aiTokens,
             });
 
             if (talon.length > 0 && playerHand.length < 4) playerHand.push(talon.pop()!);

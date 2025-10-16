@@ -1,15 +1,28 @@
-import { ELEMENTS, ABILITIES, HEROES, WEATHER_EFFECTS } from './constants';
+import {
+  ELEMENTS,
+  ABILITIES,
+  HEROES,
+  WEATHER_EFFECTS,
+  CARD_TYPES,
+  ABILITY_MECHANIC_DEFINITIONS
+} from './constants';
 
 export type ElementType = typeof ELEMENTS[number];
 export type ValueType = typeof ABILITIES[number];
 export type HeroName = keyof typeof HEROES;
 export type WeatherType = keyof typeof WEATHER_EFFECTS;
+export type CardTypeName = typeof CARD_TYPES[number]['name'];
+export type AbilityMechanicName = keyof typeof ABILITY_MECHANIC_DEFINITIONS;
 export type Winner = "spieler" | "gegner" | "unentschieden";
 
 export interface Card {
   element: ElementType;
   wert: ValueType;
   id: string;
+  cardType: CardTypeName;
+  mechanics: AbilityMechanicName[];
+  lifespan?: number;
+  charges?: number;
 }
 
 export interface Player {
