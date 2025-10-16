@@ -1,0 +1,5 @@
+{
+  "name": "Runenkrieg AI Card Game",
+  "description": "A React-based card game where players face an AI opponent. The application includes a simulation and training module for the game AI. At the end of each game, Gemini generates a unique, exciting story summarizing the match.",
+  "requestFramePermissions": []
+}
