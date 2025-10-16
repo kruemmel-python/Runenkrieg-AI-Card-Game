@@ -1,4 +1,4 @@
-import { Card, ElementType, RoundResult, TrainedModel, ValueType, WeatherType, Winner, HeroName } from '../types';
+import { Card, ElementType, RoundResult, TrainedModel, ValueType, WeatherType, Winner, HeroName, TrainingAnalysis } from '../types';
 import { ELEMENTS, ABILITIES, WEATHER_EFFECTS, ELEMENT_HIERARCHIE, HEROES } from '../constants';
 
 // --- Simulation Logic (now mirrors real game logic) ---
@@ -84,7 +84,10 @@ export function simulateGames(numGames: number): RoundResult[] {
             
             const playerCard = playerHand.splice(Math.floor(Math.random() * playerHand.length), 1)[0];
             const aiCard = aiHand.splice(Math.floor(Math.random() * aiHand.length), 1)[0];
-            
+
+            const prePlayerTokens = playerTokens;
+            const preAiTokens = aiTokens;
+
             const winner = determineWinnerInSim(playerCard, aiCard, playerHero, aiHero, playerTokens, aiTokens, weather);
 
             // UPDATED: Apply accurate element effects
@@ -97,6 +100,8 @@ export function simulateGames(numGames: number): RoundResult[] {
             allData.push({
                 spieler_karte: `${playerCard.element} ${playerCard.wert}`,
                 gegner_karte: `${aiCard.element} ${aiCard.wert}`,
+                spieler_token_vorher: prePlayerTokens,
+                gegner_token_vorher: preAiTokens,
                 spieler_token: playerTokens,
                 gegner_token: aiTokens,
                 wetter: weather,
@@ -121,7 +126,10 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
 
     for (const round of simulationData) {
         // UPDATED: Context-aware key
-        const contextKey = `${round.spieler_karte}|${round.wetter}`;
+        const tokenDelta = round.spieler_token_vorher - round.gegner_token_vorher;
+        const clampedDelta = Math.max(-5, Math.min(5, tokenDelta));
+        const heroMatchupKey = `${round.spieler_held}vs${round.gegner_held}`;
+        const contextKey = `${round.spieler_karte}|${round.wetter}|${heroMatchupKey}|delta:${clampedDelta}`;
         const aiCardKey = round.gegner_karte;
 
         if (!modelData.has(contextKey)) {
@@ -140,9 +148,70 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         }
     }
 
+    let contextsWithSolidData = 0;
+    let winRateSum = 0;
+    let contextsWithBestCard = 0;
+    let bestContext: TrainingAnalysis['bestContext'] | undefined = undefined;
+
+    for (const [contextKey, aiCardMap] of modelData.entries()) {
+        let bestCardKey: string | null = null;
+        let bestStats: { wins: number; total: number } | null = null;
+        let bestWinRate = -1;
+
+        for (const [cardKey, stats] of aiCardMap.entries()) {
+            if (stats.total === 0) continue;
+            const winRate = stats.wins / stats.total;
+            if (winRate > bestWinRate) {
+                bestWinRate = winRate;
+                bestCardKey = cardKey;
+                bestStats = stats;
+            }
+        }
+
+        if (bestStats && bestCardKey) {
+            contextsWithBestCard += 1;
+            winRateSum += bestWinRate;
+            if (bestStats.total >= 5) {
+                contextsWithSolidData += 1;
+            }
+
+            if (!bestContext || bestWinRate > bestContext.winRate) {
+                const [playerCard, weatherString, heroMatchupString, deltaString] = contextKey.split('|');
+                const weather = weatherString as WeatherType;
+                const [playerHero, aiHero] = heroMatchupString.split('vs') as [HeroName, HeroName];
+                const tokenDelta = Number(deltaString.replace('delta:', ''));
+                bestContext = {
+                    playerCard,
+                    weather,
+                    playerHero,
+                    aiHero,
+                    tokenDelta,
+                    aiCard: bestCardKey,
+                    winRate: bestWinRate,
+                    observations: bestStats.total,
+                };
+            }
+        }
+    }
+
+    const totalContexts = modelData.size;
+    const contextsNeedingData = Math.max(0, totalContexts - contextsWithSolidData);
+    const averageBestWinRate = contextsWithBestCard > 0 ? winRateSum / contextsWithBestCard : 0;
+
+    const analysis: TrainingAnalysis = {
+        totalContexts,
+        contextsWithSolidData,
+        contextsNeedingData,
+        averageBestWinRate,
+        bestContext,
+    };
+
     const predict = (playerCard: Card, aiHand: Card[], gameState: any): Card => {
         // UPDATED: Use weather from gameState for context
-        const contextKey = `${playerCard.element} ${playerCard.wert}|${gameState.weather}`;
+        const tokenDelta = (gameState.playerTokens ?? 0) - (gameState.aiTokens ?? 0);
+        const clampedDelta = Math.max(-5, Math.min(5, tokenDelta));
+        const heroMatchupKey = `${gameState.playerHero}vs${gameState.aiHero}`;
+        const contextKey = `${playerCard.element} ${playerCard.wert}|${gameState.weather}|${heroMatchupKey}|delta:${clampedDelta}`;
         const possiblePlays = modelData.get(contextKey);
 
         if (!possiblePlays || aiHand.length === 0) {
@@ -176,5 +245,5 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         return bestCard;
     };
 
-    return { predict };
+    return { predict, analysis };
 }

@@ -1,23 +1,45 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { GameHistoryEntry, Winner, HeroName } from '../types';
+import { GameHistoryEntry, Winner, HeroName } from "../types";
 
-const API_KEY = process.env.API_KEY;
+const envKey = (
+  import.meta.env.VITE_GEMINI_API_KEY ??
+  import.meta.env.VITE_API_KEY ??
+  ""
+).trim();
+let cachedApiKey = envKey.length > 0 ? envKey : undefined;
+let client: GoogleGenAI | null = cachedApiKey ? new GoogleGenAI({ apiKey: cachedApiKey }) : null;
 
-if (!API_KEY) {
-  console.warn("API_KEY environment variable not set. Gemini features will be disabled.");
+if (!cachedApiKey) {
+  console.warn("Gemini API key not set. Gemini features are optional and currently disabled.");
 }
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+function getClient(apiKeyOverride?: string): GoogleGenAI | null {
+  const normalizedOverride = apiKeyOverride?.trim();
+  const effectiveKey = normalizedOverride || cachedApiKey;
+
+  if (!effectiveKey) {
+    return null;
+  }
+
+  if (!client || cachedApiKey !== effectiveKey) {
+    client = new GoogleGenAI({ apiKey: effectiveKey });
+    cachedApiKey = effectiveKey;
+  }
+
+  return client;
+}
 
 export async function generateGameStory(
   history: GameHistoryEntry[],
   finalWinner: Winner,
   playerHero: HeroName,
-  aiHero: HeroName
+  aiHero: HeroName,
+  apiKeyOverride?: string
 ): Promise<string> {
-    if (!API_KEY) {
-        return "Gemini API key is not configured. Could not generate story.";
+    const geminiClient = getClient(apiKeyOverride);
+    if (!geminiClient) {
+        return "Gemini ist deaktiviert oder nicht konfiguriert.";
     }
 
     const gameFlow = history.map(entry => 
@@ -41,11 +63,11 @@ Schreibe nun eine fesselnde Zusammenfassung dieser Schlacht. Beginne dramatisch,
 `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await geminiClient.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
         });
-        
+
         return response.text;
     } catch (error) {
         console.error("Error generating story with Gemini:", error);

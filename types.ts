@@ -21,6 +21,8 @@ export interface Player {
 export interface RoundResult {
   spieler_karte: string;
   gegner_karte: string;
+  spieler_token_vorher: number;
+  gegner_token_vorher: number;
   spieler_token: number;
   gegner_token: number;
   wetter: WeatherType;
@@ -29,8 +31,42 @@ export interface RoundResult {
   gewinner: Winner;
 }
 
+export interface SimulationAnalysis {
+  totalRounds: number;
+  playerWins: number;
+  aiWins: number;
+  draws: number;
+  playerWinRate: number;
+  aiWinRate: number;
+  averagePlayerTokens: number;
+  averageAiTokens: number;
+  mostCommonPlayerCard: string | null;
+  mostCommonAiCard: string | null;
+  mostCommonWeather: WeatherType | null;
+  mostCommonPlayerHero: HeroName | null;
+  mostCommonAiHero: HeroName | null;
+}
+
+export interface TrainingAnalysis {
+  totalContexts: number;
+  contextsWithSolidData: number;
+  contextsNeedingData: number;
+  averageBestWinRate: number;
+  bestContext?: {
+    playerCard: string;
+    weather: WeatherType;
+    playerHero: HeroName;
+    aiHero: HeroName;
+    tokenDelta: number;
+    aiCard: string;
+    winRate: number;
+    observations: number;
+  };
+}
+
 export interface TrainedModel {
   predict: (playerCard: Card, aiHand: Card[], gameState: any) => Card;
+  analysis: TrainingAnalysis;
 }
 
 export interface GameHistoryEntry {
