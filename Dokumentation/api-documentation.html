@@ -1,0 +1,1657 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Documentation</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --sidebar-bg: #1e293b;
+            --text-color: #e2e8f0;
+            --link-color: #38bdf8;
+            --link-hover: #7dd3fc;
+            --border-color: #334155;
+            --h2-color: #67e8f9;
+            --h3-color: #a5f3fc;
+            --code-bg: #1e293b;
+        }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 300px;
+            flex-shrink: 0;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            height: 100vh;
+            overflow-y: auto;
+            padding: 1.5rem;
+            box-sizing: border-box;
+        }
+        .sidebar h1 {
+            font-size: 1.25rem;
+            margin-top: 0;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .sidebar li a {
+            display: block;
+            padding: 0.5rem 0;
+            color: var(--link-color);
+            text-decoration: none;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: color 0.2s;
+        }
+        .sidebar li a:hover {
+            color: var(--link-hover);
+        }
+        .main-content {
+            flex-grow: 1;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 2rem 3rem;
+            box-sizing: border-box;
+        }
+        section {
+            padding-top: 2rem;
+            margin-top: -2rem;
+            margin-bottom: 3rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        section:last-child {
+            border-bottom: none;
+        }
+        h2 {
+            font-size: 1.75rem;
+            color: var(--h2-color);
+            font-family: monospace;
+        }
+        h3 {
+            font-size: 1.25rem;
+            color: var(--h3-color);
+            margin-top: 2rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+        p { line-height: 1.6; }
+        code {
+            background-color: var(--code-bg);
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+        pre {
+            background-color: var(--code-bg);
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        pre code {
+            padding: 0;
+            background: none;
+            font-size: 100%;
+        }
+        .error {
+            color: #f87171;
+            background-color: #450a0a;
+            border: 1px solid #7f1d1d;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <h1>Project Files</h1>
+        <ul>
+            <li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/App.tsx">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/App.tsx</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/README.md">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/README.md</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/Spielbeschreibung.md">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/Spielbeschreibung.md</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/Card.tsx">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/Card.tsx</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/GameBoard.tsx">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/GameBoard.tsx</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/Spinner.tsx">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/Spinner.tsx</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/TrainingDashboard.tsx">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/TrainingDashboard.tsx</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/constants.ts">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/constants.ts</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/hooks/useGameLogic.ts">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/hooks/useGameLogic.ts</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/index.html">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/index.html</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/index.tsx">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/index.tsx</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/metadata.json">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/metadata.json</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/package.json">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/package.json</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/aiService.ts">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/aiService.ts</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/geminiService.ts">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/geminiService.ts</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/trainingService.ts">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/trainingService.ts</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/tsconfig.json">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/tsconfig.json</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/types.ts">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/types.ts</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/vite.config.ts">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/vite.config.ts</a></li><li><a href="#Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/AI_DOKU.md">Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/AI_DOKU.md</a></li>
+        </ul>
+    </aside>
+    <main class="main-content">
+        <section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/App.tsx">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/App.tsx</h2>
+    <p>Diese Datei definiert die Hauptanwendungskomponente (<code>App</code>) für das Runenkrieg-AI-Kartenspiel. Sie ist verantwortlich für die Verwaltung des aktuellen Ansichtsstatus (Spiel oder Training) und das Rendern der entsprechenden Unterkomponente.</p>
+
+    <h3>Typ-Alias: <code>View</code></h3>
+    <p>Definiert die möglichen Ansichten, die die Anwendung darstellen kann.</p>
+    <ul>
+        <li><strong>Typ:</strong> Union-Typ</li>
+        <li><strong>Werte:</strong>
+            <ul>
+                <li><code>'game'</code>: Repräsentiert die Spielansicht.</li>
+                <li><code>'training'</code>: Repräsentiert das Trainings-Dashboard.</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h3>React Komponente: <code>App</code></h3>
+    <p>Die Wurzelkomponente der Anwendung. Sie verwaltet den globalen Ansichtsstatus und rendert entweder das <code>GameBoard</code> oder das <code>TrainingDashboard</code> basierend auf dem aktuellen Status.</p>
+    <ul>
+        <li><strong>Zweck:</strong> Steuert die Hauptnavigation zwischen der Spielansicht und dem Trainings-Dashboard.</li>
+        <li><strong>Zustand:</strong>
+            <ul>
+                <li><code>currentView</code>: Ein Zustand, der den aktuell aktiven Ansichtsmodus speichert (Typ <code>View</code>). Initialisiert mit <code>'game'</code>.</li>
+            </ul>
+        </li>
+        <li><strong>Funktionen:</strong>
+            <ul>
+                <li>
+                    <h4><code>handleSwitchView</code></h4>
+                    <p>Eine Callback-Funktion, die es Unterkomponenten ermöglicht, die aktuelle Ansicht der Anwendung zu ändern.</p>
+                    <ul>
+                        <li><strong>Parameter:</strong>
+                            <ul>
+                                <li><code>view</code>: Der neue Ansichtsmodus, zu dem gewechselt werden soll (Typ <code>View</code>).</li>
+                            </ul>
+                        </li>
+                        <li><strong>Rückgabewert:</strong> <code>void</code></li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+        <li><strong>Rendert:</strong>
+            <ul>
+                <li><code>GameBoard</code>: Wenn <code>currentView</code> auf <code>'game'</code> gesetzt ist.</li>
+                <li><code>TrainingDashboard</code>: Wenn <code>currentView</code> auf <code>'training'</code> gesetzt ist.</li>
+            </ul>
+            Beide Komponenten erhalten die <code>handleSwitchView</code>-Funktion als Prop <code>onSwitchView</code>, um den Ansichtswechsel zu ermöglichen.
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/README.md">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/README.md</h2>
+    <p>
+        Diese Datei dient als Haupt-README für das Projekt und bietet eine umfassende Anleitung zum Einrichten, Ausführen und Bereitstellen der AI Studio-Anwendung. Sie enthält wichtige Informationen für Entwickler und Benutzer, die das Projekt lokal starten oder in AI Studio anzeigen möchten.
+    </p>
+
+    <h3>Übersicht</h3>
+    <p>
+        Das README beginnt mit einem visuellen Banner und stellt dann den Zweck des Projekts vor: das Ausführen und Bereitstellen einer AI Studio-Anwendung. Es enthält einen direkten Link zur Anwendung in AI Studio.
+    </p>
+
+    <h3>Lokale Ausführung</h3>
+    <p>
+        Dieser Abschnitt beschreibt die notwendigen Schritte, um die Anwendung auf einem lokalen System zu starten.
+    </p>
+    <h4>Voraussetzungen</h4>
+    <ul>
+        <li><code>Node.js</code>: Erforderlich für die Ausführung der JavaScript-basierten Anwendung.</li>
+    </ul>
+    <h4>Installations- und Startanleitung</h4>
+    <ol>
+        <li>
+            <p><strong>Abhängigkeiten installieren:</strong></p>
+            <p>Führen Sie den folgenden Befehl im Projektverzeichnis aus, um alle erforderlichen Paketabhängigkeiten zu installieren.</p>
+            <pre><code>npm install</code></pre>
+        </li>
+        <li>
+            <p><strong>API-Schlüssel konfigurieren:</strong></p>
+            <p>Legen Sie Ihren Gemini API-Schlüssel in der Datei <code>.env.local</code> fest. Diese Datei wird für Umgebungsvariablen verwendet.</p>
+            <pre><code>GEMINI_API_KEY=IHR_GEMINI_API_SCHLÜSSEL</code></pre>
+        </li>
+        <li>
+            <p><strong>Anwendung starten:</strong></p>
+            <p>Starten Sie die Anwendung im Entwicklungsmodus, um sie lokal auszuführen.</p>
+            <pre><code>npm run dev</code></pre>
+        </li>
+    </ol>
+
+    <h3>AI Studio Link</h3>
+    <p>
+        Ein direkter Link zur Ansicht der Anwendung in AI Studio ist ebenfalls enthalten:
+        <a href="https://ai.studio/apps/drive/1t6Xr49iSGzmR03HidiP00WQVhuzMmgZr" target="_blank">https://ai.studio/apps/drive/1t6Xr49iSGzmR03HidiP00WQVhuzMmgZr</a>
+    </p>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/Spielbeschreibung.md">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/Spielbeschreibung.md</h2>
+
+    <p>
+        Dieses Dokument dient als umfassende Beschreibung des Spiels "Runenkrieg" und erläutert sowohl die Spielregeln als auch die Funktionsweise der integrierten künstlichen Intelligenz (KI) sowie deren Trainingsmöglichkeiten.
+    </p>
+
+    <h3>1. Spielablauf</h3>
+    <p>
+        Dieser Abschnitt beschreibt die grundlegenden Regeln und den Ablauf einer Partie Runenkrieg.
+    </p>
+
+    <h4>Das Ziel</h4>
+    <p>
+        Das primäre Ziel ist es, die Lebenspunkte (Tokens) des Gegners auf 0 zu reduzieren, bevor die eigenen Tokens auf 0 fallen. Jeder Spieler beginnt mit 5 Tokens.
+    </p>
+
+    <h4>Eine Runde spielen</h4>
+    <p>
+        Eine Runde besteht aus mehreren Phasen:
+    </p>
+    <ul>
+        <li>
+            <strong>Wähle eine Karte:</strong> Der Spieler beginnt jede Runde, indem er eine Karte aus seiner Hand auswählt. Jede Karte besitzt ein Element und eine Fähigkeit mit einer spezifischen Grundstärke.
+        </li>
+        <li>
+            <strong>KI kontert:</strong> Die KI wählt basierend auf der Spielerwahl eine eigene Karte. Die Wahl kann zufällig oder strategisch erfolgen, abhängig vom Trainingszustand der KI.
+        </li>
+        <li>
+            <strong>Auswertung:</strong> Die Stärken beider gespielten Karten werden verglichen, um den Rundensieger zu ermitteln. Die Gesamtstärke einer Karte setzt sich aus folgenden Komponenten zusammen:
+            <ul>
+                <li><strong>Grundwert:</strong> Die feste Stärke der Kartenfähigkeit (z.B. "Funke" hat Stärke 0, "Avatar" hat Stärke 13).</li>
+                <li><strong>Wetter-Bonus:</strong> Das zufällig bestimmte Wetter jeder Runde kann bestimmte Elemente stärken oder schwächen (z.B. Feuerkarten sind im Regen weniger effektiv).</li>
+                <li><strong>Element-Bonus:</strong> Elemente haben Stärken und Schwächen zueinander (z.B. Wasser ist stark gegen Feuer und schwach gegen Luft).</li>
+                <li><strong>Helden-Bonus:</strong> Ein Bonus, der gewährt wird, wenn eine Karte gespielt wird, die dem Element des eigenen Helden entspricht.</li>
+                <li><strong>Moral-Bonus:</strong> Ein Stärkebonus, der proportional zum Token-Vorsprung gegenüber dem Gegner wächst und die Kampfmoral simuliert.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Effekte & Nachziehen:</strong> Die Siegerkarte der Runde löst ihren Element-Effekt aus, der typischerweise die Token-Anzahl der Spieler beeinflusst. Anschließend ziehen beide Spieler eine Karte vom Stapel nach, sofern dieser nicht leer ist.
+        </li>
+    </ul>
+
+    <h4>Spielende</h4>
+    <p>
+        Das Spiel endet, wenn eine der folgenden Bedingungen erfüllt ist:
+    </p>
+    <ul>
+        <li>Ein Spieler hat 0 oder weniger Tokens. Der Spieler mit mehr Tokens gewinnt.</li>
+        <li>Beide Spieler haben keine Karten mehr auf der Hand und der Nachziehstapel ist leer. Der Spieler mit mehr Tokens gewinnt.</li>
+        <li>Bei exakt gleicher Token-Anzahl am Ende ist das Spiel ein Unentschieden.</li>
+    </ul>
+    <p>
+        Nach jedem Spiel fasst der "epische Barde Gemini" den Kampfverlauf in einer einzigartigen Geschichte zusammen.
+    </p>
+
+    <h3>2. Die KI: Simulation & Training</h3>
+    <p>
+        Dieser Abschnitt beschreibt, wie die KI in Runenkrieg lernt und wie der Benutzer diesen Prozess steuern kann.
+    </p>
+
+    <h4>Schritt 1: Simulation</h4>
+    <ul>
+        <li>
+            <strong>Zweck:</strong> Erzeugung von Spieldaten durch das schnelle Durchspielen Tausender Partien, um eine Datenbasis für das KI-Training zu schaffen.
+        </li>
+        <li>
+            <strong>Funktion:</strong> Die Funktion <code>simulateGames</code> (referenziert im Kontext der Anwendung) spielt eine definierte Anzahl von Partien, wobei beide Spieler rein zufällige Züge ausführen. Jeder Zug und sein Ergebnis (gespielte Karten, Wetter, Gewinner, Token-Stand) werden als Datensatz gespeichert.
+        </li>
+        <li>
+            <strong>Ergebnis:</strong> Eine umfangreiche Sammlung von Spieldaten, die als Grundlage für das Training der KI dient. Eine größere Anzahl von Simulationen führt zu einer besseren Datenbasis.
+        </li>
+    </ul>
+
+    <h4>Schritt 2: Training (Der "BioVision"-Ansatz)</h4>
+    <ul>
+        <li>
+            <strong>Zweck:</strong> Die KI analysiert die gesammelten Spieldaten, um Muster zu erkennen und eine optimale Strategie zu entwickeln. Sie lernt, welche Karten in bestimmten Situationen die besten Antworten sind.
+        </li>
+        <li>
+            <strong>Was wird trainiert?:</strong> Es wird ein effizientes, biologisch inspiriertes Modell verwendet, das Aspekte der visuellen Verarbeitung im Gehirn nachahmt. Dieser Ansatz wird als <strong>Sparse Dictionary Learning</strong> bezeichnet.
+        </li>
+    </ul>
+
+    <h5>Wie funktioniert das Training?</h5>
+    <ol>
+        <li>
+            <strong>Merkmale extrahieren:</strong> Jeder Spielzug wird in einen numerischen "Feature-Vektor" übersetzt, der alle relevanten Informationen wie gespielte Karten, Token-Anzahl und Wetter enthält.
+        </li>
+        <li>
+            <strong>Muster-Wörterbuch lernen (Dictionary Learning):</strong> Die KI lernt ein "Wörterbuch" aus fundamentalen Spielmustern (Atomen). Anstatt sich jeden einzelnen Spielzug zu merken, lernt die KI die grundlegenden "Bausteine" guter oder schlechter Züge.
+        </li>
+        <li>
+            <strong>Spärliche Aktivierung (Sparsity):</strong> Bei einem neuen Spielzug beschreibt die KI diesen durch eine Kombination von nur sehr wenigen Mustern aus ihrem Wörterbuch. Dies ist inspiriert von der spärlichen Aktivierung von Neuronen im Gehirn und ist ressourcenschonend.
+        </li>
+        <li>
+            <strong>k-Winner-Take-All (k-WTA):</strong> Dieser Mechanismus gewährleistet die Spärlichkeit, indem nur die <code>k</code> (z.B. 16) relevantesten Muster aus dem Wörterbuch zur Beschreibung einer Situation herangezogen werden.
+        </li>
+        <li>
+            <strong>Entscheidung treffen:</strong> Basierend auf dieser "spärlichen" Repräsentation trifft ein einfacher Klassifikator die Entscheidung, welche Karte aus der Hand des Spielers die höchste statistische Wahrscheinlichkeit hat, gegen die gegnerische Karte unter Berücksichtigung des aktuellen Wetters zu gewinnen.
+        </li>
+    </ol>
+    <p>
+        Nach dem Klick auf "Trainiere KI" durchläuft die KI diesen Prozess und nutzt anschließend das erlernte Modell für strategische Zugentscheidungen.
+    </p>
+</section>
+```
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/Card.tsx">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/Card.tsx</h2>
+    <p>
+        Diese Datei definiert die React-Komponente <code>Card</code>, die eine einzelne Spielkarte im Runenkrieg-KI-Kartenspiel darstellt. Sie kann Karten entweder verdeckt, als Platzhalter oder mit allen Details (Element, Wert, Hover-Effekte) anzeigen.
+    </p>
+
+    <h3>Interface: <code>CardProps</code></h3>
+    <p>
+        Definiert die Eigenschaften (Props), die an die <code>Card</code>-Komponente übergeben werden können.
+    </p>
+    <ul>
+        <li>
+            <code>card</code>: <code>CardType | null</code>
+            <p>Das Kartenobjekt, das angezeigt werden soll. Wenn <code>null</code>, wird ein leerer Platzhalter gerendert.</p>
+        </li>
+        <li>
+            <code>isFaceDown</code>: <code>boolean</code> (optional, Standard: <code>false</code>)
+            <p>Gibt an, ob die Karte verdeckt angezeigt werden soll. Wenn <code>true</code>, wird nur die Rückseite der Karte gerendert.</p>
+        </li>
+        <li>
+            <code>onClick</code>: <code>() => void</code> (optional)
+            <p>Eine Callback-Funktion, die aufgerufen wird, wenn die Karte angeklickt wird.</p>
+        </li>
+        <li>
+            <code>className</code>: <code>string</code> (optional, Standard: <code>''</code>)
+            <p>Zusätzliche CSS-Klassen, die auf das Wurzel-Element der Karte angewendet werden sollen.</p>
+        </li>
+    </ul>
+
+    <h3>React Komponente: <code>Card</code></h3>
+    <p>
+        Die <code>Card</code>-Komponente ist eine funktionale React-Komponente, die eine einzelne Spielkarte im UI darstellt. Sie passt ihr Aussehen basierend auf den übergebenen Props an und bietet einen Hover-Effekt, um zusätzliche Kartendetails anzuzeigen.
+    </p>
+    <h4>Parameter:</h4>
+    <ul>
+        <li><code>props</code>: Ein Objekt vom Typ <code>CardProps</code>, das die Konfiguration der Karte enthält.</li>
+    </ul>
+    <h4>Interner Zustand:</h4>
+    <ul>
+        <li><code>isHovered</code>: Ein boolescher Zustand, der verfolgt, ob der Mauszeiger über der Karte schwebt, um den Tooltip mit Kartendetails anzuzeigen.</li>
+    </ul>
+    <h4>Funktionalität:</h4>
+    <ul>
+        <li>
+            <strong>Verdeckte Karte:</strong> Wenn <code>isFaceDown</code> auf <code>true</code> gesetzt ist, wird eine generische Kartenrückseite mit einem "룬"-Symbol (Runen-Symbol) angezeigt.
+        </li>
+        <li>
+            <strong>Leerer Platzhalter:</strong> Wenn <code>card</code> <code>null</code> ist, wird ein gestrichelter Rahmen als Platzhalter für eine leere Kartenposition gerendert.
+        </li>
+        <li>
+            <strong>Sichtbare Karte:</strong> Wenn ein <code>card</code>-Objekt vorhanden und <code>isFaceDown</code> <code>false</code> ist, wird die Karte mit ihrem Element, Wert und entsprechenden Farben gerendert.
+        </li>
+        <li>
+            <strong>Hover-Effekt:</strong> Beim Überfahren der Karte mit der Maus wird ein Tooltip angezeigt, der den Wert der Karte, ihre Stärke (basierend auf der Position im <code>ABILITIES</code>-Array) und den Elementeffekt (aus <code>ELEMENT_EFFECTS</code>) anzeigt.
+        </li>
+        <li>
+            <strong>Styling:</strong> Die Karte verwendet Tailwind CSS für ihr Layout und Styling, einschließlich Farbverläufen basierend auf dem Kartenelement (aus <code>ELEMENT_COLORS</code>), Schatten und Übergangseffekten.
+        </li>
+        <li>
+            <strong>Interaktivität:</strong> Die Karte kann angeklickt werden, wenn eine <code>onClick</code>-Funktion bereitgestellt wird.
+        </li>
+    </ul>
+    <h4>Rückgabewert:</h4>
+    <p>Ein JSX-Element, das die visuelle Darstellung der Karte darstellt.</p>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/GameBoard.tsx">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/GameBoard.tsx</h2>
+
+    <p>Diese Datei definiert die React-Komponente <code>GameBoard</code>, welche die Hauptbenutzeroberfläche für das Runenkrieg-Kartenspiel darstellt. Sie integriert die Spiellogik über den <code>useGameLogic</code> Hook, zeigt den Spielstatus an, ermöglicht die Interaktion des Spielers und bietet eine optionale Integration mit dem Gemini-Dienst zur Generierung von Spielgeschichten.</p>
+
+    <h3>Komponente: <code>GameBoard</code></h3>
+    <p>Die <code>GameBoard</code>-Komponente ist die zentrale Ansicht des Spiels. Sie verwaltet die Anzeige von Spielerkarten, KI-Karten, Heldeninformationen, Spielstatus und bietet Interaktionsmöglichkeiten wie das Ausspielen von Karten und das Starten neuer Spiele. Zusätzlich integriert sie eine Funktionalität zur Generierung von Spielgeschichten mittels Gemini AI.</p>
+
+    <h4>Props:</h4>
+    <ul>
+        <li>
+            <code>onSwitchView</code>:
+            <p>Eine Callback-Funktion, die aufgerufen wird, um die Ansicht zwischen 'game' und 'training' zu wechseln.</p>
+            <ul>
+                <li><strong>Typ:</strong> <code>(view: 'game' | 'training') => void</code></li>
+            </ul>
+        </li>
+    </ul>
+
+    <h4>Verwendete Hooks und Zustandsvariablen:</h4>
+    <ul>
+        <li>
+            <code>useGameLogic()</code>:
+            <p>Ein benutzerdefinierter Hook, der die gesamte Spiellogik kapselt und den aktuellen Spielzustand sowie Aktionen wie <code>playCard</code> und <code>startGame</code> bereitstellt.</p>
+            <ul>
+                <li><strong>Gibt zurück:</strong> Ein Objekt mit Spielzustandsvariablen (z.B. <code>playerHand</code>, <code>aiHand</code>, <code>playerTokens</code>, <code>aiTokens</code>, <code>gamePhase</code>, <code>statusText</code>, <code>gameHistory</code>) und Aktionen (<code>playCard</code>, <code>startGame</code>).</li>
+            </ul>
+        </li>
+        <li>
+            <code>story</code>:
+            <p>Speichert die generierte Spielgeschichte von Gemini.</p>
+            <ul>
+                <li><strong>Typ:</strong> <code>string</code></li>
+                <li><strong>Initialwert:</strong> <code>''</code></li>
+            </ul>
+        </li>
+        <li>
+            <code>storyNotice</code>:
+            <p>Speichert Hinweise oder Fehlermeldungen bezüglich der Story-Generierung.</p>
+            <ul>
+                <li><strong>Typ:</strong> <code>string | null</code></li>
+                <li><strong>Initialwert:</strong> <code>null</code></li>
+            </ul>
+        </li>
+        <li>
+            <code>isGeneratingStory</code>:
+            <p>Ein boolescher Wert, der anzeigt, ob gerade eine Geschichte generiert wird.</p>
+            <ul>
+                <li><strong>Typ:</strong> <code>boolean</code></li>
+                <li><strong>Initialwert:</strong> <code>false</code></li>
+            </ul>
+        </li>
+        <li>
+            <code>geminiEnabled</code>:
+            <p>Ein boolescher Wert, der angibt, ob die Gemini-Integration aktiviert ist.</p>
+            <ul>
+                <li><strong>Typ:</strong> <code>boolean</code></li>
+                <li><strong>Initialwert:</strong> <code>false</code></li>
+            </ul>
+        </li>
+        <li>
+            <code>geminiApiKey</code>:
+            <p>Speichert den API-Schlüssel für den Gemini-Dienst.</p>
+            <ul>
+                <li><strong>Typ:</strong> <code>string</code></li>
+                <li><strong>Initialwert:</strong> <code>''</code></li>
+            </ul>
+        </li>
+    </ul>
+
+    <h4><code>useEffect</code>-Hooks:</h4>
+    <ul>
+        <li>
+            <strong>Initialisierung der Gemini-Einstellungen (<code>useEffect</code> ohne Abhängigkeiten):</strong>
+            <p>Lädt beim ersten Rendern die gespeicherten Gemini-Einstellungen (<code>geminiEnabled</code> und <code>geminiApiKey</code>) aus dem <code>localStorage</code>.</p>
+        </li>
+        <li>
+            <strong>Speichern der Gemini-Einstellungen (<code>useEffect</code> mit <code>[geminiEnabled, geminiApiKey]</code>):</strong>
+            <p>Speichert Änderungen an <code>geminiEnabled</code> und <code>geminiApiKey</code> automatisch im <code>localStorage</code>. Entfernt den API-Schlüssel, wenn Gemini deaktiviert oder der Schlüssel leer ist.</p>
+        </li>
+        <li>
+            <strong>Generierung der Spielgeschichte (<code>useEffect</code> mit <code>[gamePhase, gameHistory, finalWinner, playerHero, aiHero, geminiEnabled, geminiApiKey]</code>):</strong>
+            <p>Wird ausgelöst, wenn das Spiel in die Phase 'gameOver' übergeht. Überprüft, ob Gemini aktiviert ist und ein API-Schlüssel vorhanden ist. Ruft dann <code>generateGameStory</code> auf, um eine Geschichte basierend auf dem Spielverlauf zu erstellen. Aktualisiert den Zustand mit der generierten Geschichte oder Fehlermeldungen.</p>
+        </li>
+    </ul>
+
+    <h4>Funktionen:</h4>
+    <ul>
+        <li>
+            <code>renderPlayerInfo(isPlayer: boolean)</code>:
+            <p>Eine Hilfsfunktion, die die Informationen für den Spieler oder die KI (Heldenname, Bonus, Tokens) rendert.</p>
+            <ul>
+                <li><strong>Parameter:</strong>
+                    <ul>
+                        <li><code>isPlayer</code>: Ein boolescher Wert, der angibt, ob die Informationen für den Spieler (<code>true</code>) oder die KI (<code>false</code>) gerendert werden sollen.</li>
+                    </ul>
+                </li>
+                <li><strong>Gibt zurück:</strong> Ein JSX-Element, das die Spieler-/KI-Informationen anzeigt.</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h4>Rendering:</h4>
+    <p>Die Komponente rendert das gesamte Spielbrett, einschließlich:</p>
+    <ul>
+        <li>Einer Überlagerung für den "Spiel Vorbei!"-Bildschirm, der den Gewinner und die generierte Spielgeschichte (oder einen Spinner während der Generierung) anzeigt.</li>
+        <li>Einer oberen Leiste mit KI-Informationen, dem aktuellen Wetter und Steuerelementen für die Gemini-Integration (Aktivierung, API-Schlüssel-Eingabe) sowie einem Button zum Wechsel zur Trainingsansicht.</li>
+        <li>Der verdeckten Hand der KI.</li>
+        <li>Dem Bereich für die ausgespielten Karten von Spieler und KI, wobei die Gewinnerkarte einer Runde visuell hervorgehoben wird.</li>
+        <li>Der Hand des Spielers, wobei Karten anklickbar sind, wenn der Spieler am Zug ist.</li>
+        <li>Einer unteren Leiste mit Spielerinformationen und dem aktuellen Spielstatus.</li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/Spinner.tsx">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/Spinner.tsx</h2>
+    <p>Diese Datei definiert die React-Komponente <code>Spinner</code>, die eine einfache Ladeanimation darstellt. Sie wird verwendet, um dem Benutzer visuelles Feedback zu geben, dass ein Prozess im Hintergrund läuft.</p>
+
+    <h3>React-Komponente: <code>Spinner</code></h3>
+    <p>Die <code>Spinner</code>-Komponente ist eine funktionale React-Komponente, die ein animiertes Ladesymbol rendert.</p>
+    <ul>
+        <li>
+            <h4>Zweck</h4>
+            <p>Zeigt eine visuelle Ladeanzeige an, typischerweise in Situationen, in denen Daten geladen oder eine Operation ausgeführt wird, die eine kurze Wartezeit erfordert. Die Animation wird durch Tailwind CSS-Klassen (<code>animate-spin</code>) realisiert.</p>
+        </li>
+        <li>
+            <h4>Parameter</h4>
+            <p>Die Komponente akzeptiert keine expliziten Props.</p>
+        </li>
+        <li>
+            <h4>Rückgabewert</h4>
+            <p>Gibt ein JSX-Element zurück, das ein <code>div</code> mit Styling-Klassen für die Spinner-Animation darstellt.</p>
+            <p><code>&lt;div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"&gt;&lt;/div&gt;</code></p>
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/TrainingDashboard.tsx">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/components/TrainingDashboard.tsx</h2>
+    <p>Diese Datei definiert das <code>TrainingDashboard</code> React-Komponente, das eine Benutzeroberfläche für die Simulation von Spielen und das Training der KI bereitstellt. Es visualisiert auch die Ergebnisse der Simulation und des Trainings.</p>
+
+    <h3>Funktion: <code>getMostFrequent&lt;T&gt;</code></h3>
+    <p>Eine generische Hilfsfunktion, die das am häufigsten vorkommende Element in einem Array findet.</p>
+    <ul>
+        <li>
+            <strong>Parameter:</strong>
+            <ul>
+                <li><code>items</code>: Ein Array von Elementen des Typs <code>T</code>.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Rückgabewert:</strong>
+            <p>Das am häufigsten vorkommende Element im Array oder <code>null</code>, wenn das Array leer ist.</p>
+        </li>
+    </ul>
+
+    <h3>Funktion: <code>buildSimulationAnalysis</code></h3>
+    <p>Diese Funktion verarbeitet eine Liste von <code>RoundResult</code>-Objekten, um eine detaillierte <code>SimulationAnalysis</code> zu erstellen. Sie berechnet Siegquoten, durchschnittliche Token-Werte und identifiziert die häufigsten Karten, Wetter und Helden.</p>
+    <ul>
+        <li>
+            <strong>Parameter:</strong>
+            <ul>
+                <li><code>data</code>: Ein Array von <code>RoundResult</code>-Objekten, die die Ergebnisse simulierter Runden darstellen.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Rückgabewert:</strong>
+            <p>Ein <code>SimulationAnalysis</code>-Objekt, das die aggregierten Daten der Simulation enthält.</p>
+        </li>
+    </ul>
+
+    <h3>React Komponente: <code>TrainingDashboard</code></h3>
+    <p>Die Hauptkomponente, die das UI für das KI-Trainingszentrum rendert. Sie ermöglicht es Benutzern, Spiele zu simulieren, die KI mit den gesammelten Daten zu trainieren und die Ergebnisse beider Prozesse anzuzeigen.</p>
+    <ul>
+        <li>
+            <strong>Props:</strong>
+            <ul>
+                <li><code>onSwitchView</code>: Eine Callback-Funktion, die aufgerufen wird, um die Ansicht zwischen 'game' und 'training' zu wechseln.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Zustandsvariablen (Hooks):</strong>
+            <ul>
+                <li><code>simulationCount</code>: Die Anzahl der Spiele, die simuliert werden sollen (Standard: 1000).</li>
+                <li><code>simulationData</code>: Ein Array von <code>RoundResult</code>-Objekten, die die Ergebnisse der letzten Simulation speichern.</li>
+                <li><code>isSimulating</code>: Ein boolescher Wert, der anzeigt, ob eine Simulation gerade läuft.</li>
+                <li><code>isTraining</code>: Ein boolescher Wert, der anzeigt, ob ein KI-Training gerade läuft.</li>
+                <li><code>aiStatus</code>: Eine Zeichenkette, die den aktuellen Status der KI beschreibt (trainiert oder zufällig).</li>
+                <li><code>simulationAnalysis</code>: Ein <code>SimulationAnalysis</code>-Objekt, das die Analyse der simulierten Daten enthält.</li>
+                <li><code>trainingAnalysis</code>: Ein <code>TrainingAnalysis</code>-Objekt, das die Analyse des KI-Trainings enthält.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Interne Hilfsfunktionen:</strong>
+            <ul>
+                <li><code>formatPercent(value: number)</code>: Formatiert einen numerischen Wert als Prozentzeichenfolge.</li>
+                <li><code>formatNumber(value: number)</code>: Formatiert eine Zahl mit Tausendertrennzeichen für die deutsche Lokalisierung.</li>
+                <li><code>formatTokenDelta(delta: number)</code>: Formatiert eine Token-Differenz mit Vorzeichen.</li>
+                <li><code>describeTokenAdvantage(delta: number)</code>: Beschreibt, ob ein Token-Vorsprung zugunsten des Spielers, der KI oder neutral ist.</li>
+            </ul>
+        </li>
+        <li>
+            <strong>Event-Handler:</strong>
+            <ul>
+                <li>
+                    <code>handleSimulate</code>: Eine Callback-Funktion, die die Simulation von Spielen startet. Sie setzt den Simulationsstatus, ruft <code>simulateGames</code> auf und aktualisiert die Simulationsdaten und -analyse.
+                </li>
+                <li>
+                    <code>handleTrain</code>: Eine Callback-Funktion, die das KI-Training startet. Sie überprüft, ob Simulationsdaten vorhanden sind, setzt den Trainingsstatus, ruft <code>trainModel</code> auf, speichert das trainierte Modell und aktualisiert den KI-Status und die Trainingsanalyse.
+                </li>
+            </ul>
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/constants.ts">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/constants.ts</h2>
+    <p>Diese Datei definiert eine Sammlung von Konstanten, die im gesamten Runenkrieg-AI-Kartenspiel verwendet werden. Sie enthält grundlegende Spielwerte, Elementdefinitionen, Fähigkeiten, Hierarchien und visuelle Konfigurationen, um eine konsistente Datenbasis für die Spielmechanik und Benutzeroberfläche zu gewährleisten.</p>
+
+    <h3><code>ELEMENTS</code></h3>
+    <p>
+        Eine schreibgeschützte Liste aller verfügbaren Elementtypen im Spiel. Diese Elemente bilden die Grundlage für Karten, Helden und Spielmechaniken.
+    </p>
+    <ul>
+        <li><strong>Typ:</strong> <code>readonly string[]</code></li>
+        <li><strong>Werte:</strong> <code>["Feuer", "Wasser", "Erde", "Luft", "Blitz", "Eis", "Magie"]</code></li>
+    </ul>
+
+    <h3><code>ABILITIES</code></h3>
+    <p>
+        Eine schreibgeschützte Liste von Fähigkeiten, die den Stärkewerten von Karten entsprechen. Jede Fähigkeit ist einem numerischen Stärkewert zugeordnet, von 0 (Funke) bis 13 (Avatar).
+    </p>
+    <ul>
+        <li><strong>Typ:</strong> <code>readonly string[]</code></li>
+        <li><strong>Werte:</strong>
+            <ul>
+                <li><code>"Funke"</code> (Stärke 0)</li>
+                <li><code>"Strahl"</code> (Stärke 1)</li>
+                <li><code>"Flamme"</code> (Stärke 2)</li>
+                <li><code>"Glut"</code> (Stärke 3)</li>
+                <li><code>"Feuerball"</code> (Stärke 4)</li>
+                <li><code>"Inferno"</code> (Stärke 5)</li>
+                <li><code>"Nova"</code> (Stärke 6)</li>
+                <li><code>"Supernova"</code> (Stärke 7)</li>
+                <li><code>"Apokalypse"</code> (Stärke 8)</li>
+                <li><code>"Weltenbrand"</code> (Stärke 9)</li>
+                <li><code>"Akolyth"</code> (Stärke 10 - Bube)</li>
+                <li><code>"Priesterin"</code> (Stärke 11 - Dame)</li>
+                <li><code>"Elementar"</code> (Stärke 12 - König)</li>
+                <li><code>"Avatar"</code> (Stärke 13 - Ass)</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h3><code>ELEMENT_HIERARCHIE</code></h3>
+    <p>
+        Definiert die Interaktionsmatrix zwischen den verschiedenen Elementtypen. Die Werte geben an, wie stark ein Element gegen ein anderes ist (positive Werte bedeuten Vorteil, negative Werte bedeuten Nachteil).
+    </p>
+    <ul>
+        <li><strong>Typ:</strong> <code>Record&lt;ElementType, Partial&lt;Record&lt;ElementType, number&gt;&gt;&gt;</code></li>
+        <li><strong>Struktur:</strong> Ein Objekt, bei dem jeder Schlüssel ein <code>ElementType</code> ist und der Wert ein weiteres Objekt ist, das die Modifikatoren gegen andere <code>ElementType</code>s angibt.</li>
+        <li><strong>Beispiel:</strong> <code>"Wasser": {"Feuer": 3, "Erde": 1, "Luft": -3, "Blitz": -3, "Eis": 3}</code> bedeutet, dass Wasser einen Vorteil von 3 gegen Feuer und Eis hat, einen Vorteil von 1 gegen Erde, aber einen Nachteil von 3 gegen Luft und Blitz.</li>
+    </ul>
+
+    <h3><code>ELEMENT_EFFECTS</code></h3>
+    <p>
+        Beschreibt die spezifischen Effekte, die ausgelöst werden, wenn ein Spieler mit einer Karte eines bestimmten Elements einen Kampf gewinnt.
+    </p>
+    <ul>
+        <li><strong>Typ:</strong> <code>Record&lt;ElementType, string&gt;</code></li>
+        <li><strong>Beispiel:</strong> <code>"Feuer": "Effekt bei Sieg: -1 Gegnertoken."</code></li>
+    </ul>
+
+    <h3><code>HEROES</code></h3>
+    <p>
+        Definiert die verfügbaren Helden im Spiel, einschließlich ihres zugehörigen Elements und eines Bonuswerts.
+    </p>
+    <p>
+        <strong>FIX:</strong> Die explizite Typannotation wurde entfernt, um eine zirkuläre Abhängigkeit zu vermeiden. Durch die Verwendung von <code>'as const'</code> kann TypeScript den genauen Typ ableiten, der dann in <code>types.ts</code> für den <code>HeroName</code>-Typ ohne zirkuläre Referenz verwendet wird.
+    </p>
+    <ul>
+        <li><strong>Typ:</strong> <code>readonly { [key: string]: { Element: ElementType; Bonus: number; } }</code></li>
+        <li><strong>Werte:</strong>
+            <ul>
+                <li><code>"Drache": {"Element": "Feuer", "Bonus": 2}</code></li>
+                <li><code>"Zauberer": {"Element": "Magie", "Bonus": 3}</code></li>
+            </ul>
+        </li>
+    </ul>
+
+    <h3><code>WEATHER_EFFECTS</code></h3>
+    <p>
+        Definiert die Effekte verschiedener Wetterbedingungen auf die Elemente im Spiel.
+    </p>
+    <p>
+        <strong>FIX:</strong> Die explizite Typannotation wurde entfernt, um eine zirkuläre Abhängigkeit zu vermeiden. <code>'as const'</code> ermöglicht die Typinferenz und bricht die zirkuläre Referenz mit <code>WeatherType</code>.
+    </p>
+    <ul>
+        <li><strong>Typ:</strong> <code>readonly { [key: string]: Partial&lt;Record&lt;ElementType, number&gt;&gt; }</code></li>
+        <li><strong>Werte:</strong>
+            <ul>
+                <li><code>"Regen": {"Wasser": 1, "Feuer": -1}</code> (Wasser erhält +1, Feuer -1)</li>
+                <li><code>"Windsturm": {"Luft": 2, "Erde": -1}</code> (Luft erhält +2, Erde -1)</li>
+                <li><code>"Erdbeben": {}</code> (Keine direkten Elementeffekte)</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h3><code>START_TOKENS</code></h3>
+    <p>
+        Die Anzahl der Start-Tokens, die jeder Spieler zu Beginn eines Spiels erhält.
+    </p>
+    <ul>
+        <li><strong>Typ:</strong> <code>number</code></li>
+        <li><strong>Wert:</strong> <code>5</code></li>
+    </ul>
+
+    <h3><code>HAND_SIZE</code></h3>
+    <p>
+        Die maximale Anzahl von Karten, die ein Spieler auf der Hand halten kann.
+    </p>
+    <ul>
+        <li><strong>Typ:</strong> <code>number</code></li>
+        <li><strong>Wert:</strong> <code>4</code></li>
+    </ul>
+
+    <h3><code>ELEMENT_COLORS</code></h3>
+    <p>
+        Definiert Farbverläufe (für Tailwind CSS Klassen) und Icons für jedes Element, die für die visuelle Darstellung im Spiel verwendet werden.
+    </p>
+    <ul>
+        <li><strong>Typ:</strong> <code>Record&lt;ElementType, { from: string, to: string, icon: string }&gt;</code></li>
+        <li><strong>Struktur:</strong> Ein Objekt, bei dem jeder Schlüssel ein <code>ElementType</code> ist und der Wert ein Objekt mit <code>from</code> (Startfarbe), <code>to</code> (Endfarbe) und <code>icon</code> (Emoji-Icon) ist.</li>
+        <li><strong>Beispiel:</strong> <code>"Feuer": { from: 'from-red-500', to: 'to-orange-400', icon: '🔥' }</code></li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/hooks/useGameLogic.ts">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/hooks/useGameLogic.ts</h2>
+    <p>Diese Datei definiert den React Hook <code>useGameLogic</code>, der die gesamte Spiellogik für das Runenkrieg-KI-Kartenspiel kapselt. Er verwaltet den Spielzustand, die Rundenabläufe, die Token-Berechnung und die Interaktion mit der KI.</p>
+
+    <h3><code>useGameLogic</code> (React Hook)</h3>
+    <p>Ein benutzerdefinierter React Hook, der den gesamten Zustand und die Logik des Kartenspiels verwaltet. Er stellt Funktionen zur Verfügung, um das Spiel zu starten, Karten zu spielen und den aktuellen Spielstatus abzurufen.</p>
+    <h4>Zustandsvariablen (<code>useState</code>):</h4>
+    <ul>
+        <li><code>deck</code>: Ein Array von <code>Card</code>-Objekten, das den verbleibenden Kartenstapel darstellt.</li>
+        <li><code>playerHand</code>: Ein Array von <code>Card</code>-Objekten, das die Hand des Spielers darstellt.</li>
+        <li><code>aiHand</code>: Ein Array von <code>Card</code>-Objekten, das die Hand der KI darstellt.</li>
+        <li><code>playerTokens</code>: Die aktuelle Anzahl der Token des Spielers.</li>
+        <li><code>aiTokens</code>: Die aktuelle Anzahl der Token der KI.</li>
+        <li><code>playerHero</code>: Der Name des Helden des Spielers (Typ <code>HeroName</code>).</li>
+        <li><code>aiHero</code>: Der Name des Helden der KI (Typ <code>HeroName</code>).</li>
+        <li><code>playerCard</code>: Die vom Spieler in der aktuellen Runde gespielte Karte (oder <code>null</code>).</li>
+        <li><code>aiCard</code>: Die von der KI in der aktuellen Runde gespielte Karte (oder <code>null</code>).</li>
+        <li><code>weather</code>: Das aktuelle Wetter für die Runde (Typ <code>WeatherType</code> oder <code>null</code>).</li>
+        <li><code>roundWinner</code>: Der Gewinner der aktuellen Runde (<code>"spieler"</code>, <code>"gegner"</code>, <code>"unentschieden"</code> oder <code>null</code>).</li>
+        <li><code>gamePhase</code>: Die aktuelle Phase des Spiels (<code>'start'</code>, <code>'playerTurn'</code>, <code>'evaluation'</code>, <code>'gameOver'</code>).</li>
+        <li><code>statusText</code>: Eine Textnachricht, die den aktuellen Spielstatus anzeigt.</li>
+        <li><code>gameHistory</code>: Ein Array von <code>GameHistoryEntry</code>-Objekten, das den Verlauf des Spiels aufzeichnet.</li>
+    </ul>
+    <h4>Rückgabewert:</h4>
+    <p>Ein Objekt, das alle Zustandsvariablen und die Funktionen <code>playCard</code> und <code>startGame</code> enthält, um sie in React-Komponenten nutzen zu können.</p>
+
+    <h3><code>createDeck</code> (Callback-Funktion)</h3>
+    <p>Erstellt einen neuen Satz von Spielkarten und mischt diesen. Jede Karte hat ein Element und einen Wert.</p>
+    <h4>Parameter:</h4>
+    <ul>
+        <li>Keine.</li>
+    </ul>
+    <h4>Rückgabewert:</h4>
+    <ul>
+        <li><code>Card[]</code>: Ein gemischtes Array von <code>Card</code>-Objekten.</li>
+    </ul>
+
+    <h3><code>startGame</code> (Callback-Funktion)</h3>
+    <p>Initialisiert ein neues Spiel. Dies beinhaltet das Erstellen und Mischen des Decks, das Austeilen der Starthände an Spieler und KI, das Setzen der Start-Token, das Zufalls-Auswählen von Helden und das Zurücksetzen aller relevanten Spielzustände.</p>
+    <h4>Parameter:</h4>
+    <ul>
+        <li>Keine.</li>
+    </ul>
+    <h4>Rückgabewert:</h4>
+    <ul>
+        <li>Keine (aktualisiert den internen Zustand des Hooks).</li>
+    </ul>
+
+    <h3><code>calculateTotalValue</code> (Interne Funktion)</h3>
+    <p>Berechnet den Gesamtwert einer gespielten Karte unter Berücksichtigung verschiedener Boni und Effekte.</p>
+    <h4>Parameter:</h4>
+    <ul>
+        <li><code>ownCard</code>: Die eigene gespielte Karte (Typ <code>Card</code>).</li>
+        <li><code>opponentCard</code>: Die vom Gegner gespielte Karte (Typ <code>Card</code>).</li>
+        <li><code>hero</code>: Der Name des eigenen Helden (Typ <code>HeroName</code>).</li>
+        <li><code>ownTokens</code>: Die eigenen Token-Anzahl.</li>
+        <li><code>opponentTokens</code>: Die Token-Anzahl des Gegners.</li>
+        <li><code>currentWeather</code>: Das aktuelle Wetter (Typ <code>WeatherType</code>).</li>
+    </ul>
+    <h4>Rückgabewert:</h4>
+    <ul>
+        <li><code>number</code>: Der berechnete Gesamtwert der Karte.</li>
+    </ul>
+
+    <h3><code>playCard</code> (Callback-Funktion)</h3>
+    <p>Verarbeitet den Zug eines Spielers, die Reaktion der KI und die anschließende Rundenbewertung. Dies beinhaltet:</p>
+    <ul>
+        <li>Das Entfernen der gespielten Karte aus der Hand des Spielers.</li>
+        <li>Das Zufalls-Auswählen eines neuen Wetters.</li>
+        <li>Die KI wählt eine Karte basierend auf der Spielerkarte und dem Spielzustand (mittels <code>aiService.chooseCard</code>).</li>
+        <li>Berechnung der Gesamtwerte beider Karten mit <code>calculateTotalValue</code>.</li>
+        <li>Bestimmung des Rundengewinners.</li>
+        <li>Anpassung der Token-Anzahl basierend auf dem Element der Gewinnerkarte.</li>
+        <li>Aktualisierung des Spielverlaufs.</li>
+        <li>Nach einer kurzen Verzögerung: Nachziehen von Karten, Überprüfung auf Spielende und Übergang zur nächsten Runde oder zum Spielende-Zustand.</li>
+    </ul>
+    <h4>Parameter:</h4>
+    <ul>
+        <li><code>cardIndex</code>: Der Index der vom Spieler gewählten Karte in seiner Hand.</li>
+    </ul>
+    <h4>Rückgabewert:</h4>
+    <ul>
+        <li>Keine (aktualisiert den internen Zustand des Hooks).</li>
+    </ul>
+
+    <h3><code>useEffect</code> (Hook)</h3>
+    <p>Dieser Effekt stellt sicher, dass das Spiel automatisch startet, wenn die <code>gamePhase</code> auf <code>'start'</code> gesetzt ist.</p>
+    <h4>Abhängigkeiten:</h4>
+    <ul>
+        <li><code>gamePhase</code></li>
+        <li><code>startGame</code></li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/index.html">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/index.html</h2>
+    <p>
+        Diese Datei ist die Haupt-Einstiegspunkt-HTML-Datei für die Webanwendung. Sie definiert die grundlegende Struktur der Webseite, lädt externe Ressourcen und initialisiert das Root-Element, in das die React-Anwendung gerendert wird.
+    </p>
+
+    <h3>Struktur und Komponenten</h3>
+
+    <h4><code>&lt;!DOCTYPE html&gt;</code> und <code>&lt;html lang="de"&gt;</code></h4>
+    <p>
+        Definiert den Dokumenttyp als HTML5 und legt die Sprache des Dokuments auf Deutsch fest, was für Barrierefreiheit und Suchmaschinenoptimierung wichtig ist.
+    </p>
+
+    <h4><code>&lt;head&gt;</code></h4>
+    <p>
+        Der <code>&lt;head&gt;</code>-Bereich enthält Metadaten und Verweise auf externe Ressourcen, die vor dem Laden des Seiteninhalts benötigt werden.
+    </p>
+    <ul>
+        <li>
+            <h3><code>&lt;meta charset="UTF-8" /&gt;</code></h3>
+            <p>
+                Legt die Zeichenkodierung des Dokuments auf UTF-8 fest, um eine korrekte Darstellung verschiedener Zeichen zu gewährleisten.
+            </p>
+        </li>
+        <li>
+            <h3><code>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0" /&gt;</code></h3>
+            <p>
+                Konfiguriert den Viewport für responsive Webdesign, um sicherzustellen, dass die Seite auf verschiedenen Geräten korrekt skaliert und angezeigt wird.
+            </p>
+        </li>
+        <li>
+            <h3><code>&lt;title&gt;Runenkrieg KI Trainingszentrum&lt;/title&gt;</code></h3>
+            <p>
+                Setzt den Titel der Webseite, der im Browser-Tab oder Fenster angezeigt wird.
+            </p>
+        </li>
+        <li>
+            <h3><code>&lt;script src="https://cdn.tailwindcss.com"&gt;&lt;/script&gt;</code></h3>
+            <p>
+                Bindet das Tailwind CSS Framework über ein Content Delivery Network (CDN) ein. Dies ermöglicht die Verwendung von Utility-Klassen für das Styling der Anwendung.
+            </p>
+        </li>
+        <li>
+            <h3><code>&lt;style&gt;</code> Block</h3>
+            <p>
+                Enthält Inline-CSS-Regeln, die globale Stile definieren.
+            </p>
+            <ul>
+                <li>
+                    <code>:root { color-scheme: dark; }</code>:
+                    <p>
+                        Setzt das bevorzugte Farbschema des Dokuments auf "dark", was Browsern signalisiert, eine dunkle Benutzeroberfläche zu verwenden, falls verfügbar und vom Benutzer bevorzugt.
+                    </p>
+                </li>
+                <li>
+                    <code>body { min-height: 100vh; }</code>:
+                    <p>
+                        Stellt sicher, dass der <code>&lt;body&gt;</code>-Bereich mindestens die volle Höhe des Viewports einnimmt, was für Layouts mit Full-Height-Komponenten nützlich ist.
+                    </p>
+                </li>
+            </ul>
+        </li>
+    </ul>
+
+    <h4><code>&lt;body&gt;</code></h4>
+    <p>
+        Der <code>&lt;body&gt;</code>-Bereich enthält den sichtbaren Inhalt der Webseite.
+    </p>
+    <ul>
+        <li>
+            <h3><code>&lt;body class="bg-slate-950 text-slate-100"&gt;</code></h3>
+            <p>
+                Wendet Tailwind CSS-Klassen auf den <code>&lt;body&gt;</code> an, um einen sehr dunklen Hintergrund (<code>bg-slate-950</code>) und eine helle Textfarbe (<code>text-slate-100</code>) für die gesamte Anwendung festzulegen.
+            </p>
+        </li>
+        <li>
+            <h3><code>&lt;div id="root"&gt;&lt;/div&gt;</code></h3>
+            <p>
+                Dies ist das Haupt-DOM-Element, in das die React-Anwendung gerendert wird. Die JavaScript-Datei <code>index.tsx</code> wird dieses Element verwenden, um die React-Komponenten einzuhängen.
+            </p>
+        </li>
+        <li>
+            <h3><code>&lt;script type="module" src="/index.tsx"&gt;&lt;/script&gt;</code></h3>
+            <p>
+                Bindet die Haupt-TypeScript-Datei der Anwendung als ES-Modul ein. Diese Datei ist der Einstiegspunkt für die React-Anwendung, die den gesamten interaktiven Inhalt der Seite bereitstellt.
+            </p>
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/index.tsx">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/index.tsx</h2>
+    <p>
+        Diese Datei dient als Haupteinstiegspunkt der React-Anwendung. Sie ist verantwortlich für das Initialisieren des React-Renderings und das Einhängen der Hauptkomponente <code>App</code> in das DOM.
+    </p>
+
+    <h3>Dateiaufbau und Funktionalität</h3>
+    <ul>
+        <li>
+            <h4>Importe</h4>
+            <p>Die Datei importiert die notwendigen Bibliotheken und Komponenten:</p>
+            <ul>
+                <li><code>React</code> von <code>'react'</code>: Die Kernbibliothek für die Erstellung von Benutzeroberflächen.</li>
+                <li><code>ReactDOM</code> von <code>'react-dom/client'</code>: Ermöglicht das Rendern von React-Komponenten im Browser-DOM.</li>
+                <li><code>App</code> von <code>'./App'</code>: Die Hauptkomponente der Anwendung, die gerendert werden soll.</li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>rootElement</code></h4>
+            <p>
+                Diese Konstante versucht, das DOM-Element mit der ID <code>'root'</code> abzurufen. Dieses Element ist der Ankerpunkt im <code>index.html</code>, in den die React-Anwendung eingehängt wird.
+            </p>
+            <ul>
+                <li><strong>Zweck:</strong> Identifiziert den Container für die React-Anwendung.</li>
+                <li><strong>Typ:</strong> <code>HTMLElement | null</code></li>
+            </ul>
+        </li>
+        <li>
+            <h4>Fehlerbehandlung für <code>rootElement</code></h4>
+            <p>
+                Es wird eine Überprüfung durchgeführt, ob das <code>rootElement</code> erfolgreich gefunden wurde. Falls nicht, wird ein Fehler geworfen, um sicherzustellen, dass die Anwendung nicht ohne einen gültigen DOM-Container gestartet wird.
+            </p>
+            <ul>
+                <li><strong>Zweck:</strong> Stellt sicher, dass ein gültiger Einhängepunkt für die React-Anwendung existiert.</li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>ReactDOM.createRoot(rootElement)</code></h4>
+            <p>
+                Erstellt eine React-Root-Instanz, die für das deklarative Rendern von React-Komponenten in einem Browser-DOM-Knoten verwendet wird. Dies ist der moderne Weg, React-Anwendungen zu initialisieren.
+            </p>
+            <ul>
+                <li><strong>Parameter:</strong> <code>rootElement</code> (das gefundene DOM-Element).</li>
+                <li><strong>Rückgabewert:</strong> Eine React-Root-Instanz.</li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>root.render(...)</code></h4>
+            <p>
+                Diese Methode rendert die Hauptkomponente <code>App</code> in den erstellten React-Root. Die <code>App</code>-Komponente wird innerhalb von <code>&lt;React.StrictMode&gt;</code> gerendert.
+            </p>
+            <ul>
+                <li><strong>Zweck:</strong> Startet den Rendering-Prozess der React-Anwendung.</li>
+                <li><strong><code>&lt;React.StrictMode&gt;</code>:</strong> Ein Tool zur Hervorhebung potenzieller Probleme in einer Anwendung. Es aktiviert zusätzliche Prüfungen und Warnungen für seine Nachkommen.</li>
+            </ul>
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/metadata.json">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/metadata.json</h2>
+    <p>Diese Datei dient als Metadaten-Speicher für das Projekt und enthält grundlegende Informationen über die Anwendung, wie ihren Namen und eine kurze Beschreibung. Solche Metadaten sind oft nützlich für die Dokumentation, die Anzeige in App-Stores oder für interne Projektübersichten.</p>
+
+    <h3>Struktur der Metadaten</h3>
+    <p>Die Datei ist ein JSON-Objekt, das die folgenden Schlüssel-Wert-Paare enthält:</p>
+    <ul>
+        <li>
+            <h4><code>name</code></h4>
+            <p>Der offizielle Name der Anwendung.</p>
+            <ul>
+                <li><strong>Typ:</strong> String</li>
+                <li><strong>Wert:</strong> <code>"Runenkrieg AI Card Game"</code></li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>description</code></h4>
+            <p>Eine kurze Beschreibung der Anwendung, die ihre Hauptfunktionen und Besonderheiten hervorhebt.</p>
+            <ul>
+                <li><strong>Typ:</strong> String</li>
+                <li><strong>Wert:</strong> <code>"A React-based card game where players face an AI opponent. The application includes a simulation and training module for the game AI. At the end of each game, Gemini generates a unique, exciting story summarizing the match."</code></li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>requestFramePermissions</code></h4>
+            <p>Ein Array, das Berechtigungen für Frames anfordern könnte. In diesem Fall ist das Array leer, was bedeutet, dass keine spezifischen Frame-Berechtigungen angefordert werden.</p>
+            <ul>
+                <li><strong>Typ:</strong> Array von Strings</li>
+                <li><strong>Wert:</strong> <code>[]</code></li>
+            </ul>
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/package.json">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/package.json</h2>
+    <p>
+        Die Datei <code>package.json</code> ist das Herzstück jedes Node.js-Projekts und dient als Manifest für das Projekt. Sie enthält wichtige Metadaten über das Projekt, wie Name, Version, Skripte, Abhängigkeiten und Entwicklungsabhängigkeiten. Diese Informationen sind entscheidend für die Verwaltung des Projekts, das Ausführen von Build-Prozessen und die Installation der benötigten Bibliotheken.
+    </p>
+
+    <h3>Projektinformationen</h3>
+    <ul>
+        <li>
+            <p><strong><code>name</code></strong>: <code>"runenkrieg-ai-card-game"</code></p>
+            <p>Definiert den Namen des Projekts. Dies ist der eindeutige Bezeichner für das Paket.</p>
+        </li>
+        <li>
+            <p><strong><code>private</code></strong>: <code>true</code></p>
+            <p>Gibt an, dass dieses Paket nicht zur Veröffentlichung in einem Paket-Repository (wie npm) vorgesehen ist. Es ist ein privates Projekt.</p>
+        </li>
+        <li>
+            <p><strong><code>version</code></strong>: <code>"0.0.0"</code></p>
+            <p>Die aktuelle Version des Projekts. Die initiale Version <code>0.0.0</code> deutet auf ein frühes Entwicklungsstadium hin.</p>
+        </li>
+        <li>
+            <p><strong><code>type</code></strong>: <code>"module"</code></p>
+            <p>Legt fest, dass das Projekt ECMAScript-Module (ESM) verwendet, was moderne Import-/Export-Syntax ermöglicht.</p>
+        </li>
+    </ul>
+
+    <h3>Skripte (<code>scripts</code>)</h3>
+    <p>
+        Dieser Abschnitt definiert eine Reihe von Befehlen, die über den Paketmanager (z.B. npm oder yarn) ausgeführt werden können, um gängige Aufgaben im Projekt zu automatisieren.
+    </p>
+    <ul>
+        <li>
+            <p><strong><code>dev</code></strong>: <code>"vite"</code></p>
+            <p>Startet den Entwicklungsserver mit Vite. Dies ermöglicht schnelles Hot-Module-Replacement (HMR) und eine effiziente Entwicklungsumgebung.</p>
+        </li>
+        <li>
+            <p><strong><code>build</code></strong>: <code>"vite build"</code></p>
+            <p>Führt den Build-Prozess des Projekts mit Vite aus. Dies erstellt eine optimierte, produktionsreife Version der Anwendung.</p>
+        </li>
+        <li>
+            <p><strong><code>preview</code></strong>: <code>"vite preview"</code></p>
+            <p>Startet einen lokalen Server, um die gebundene (produktionsreife) Version der Anwendung zu testen.</p>
+        </li>
+    </ul>
+
+    <h3>Abhängigkeiten (<code>dependencies</code>)</h3>
+    <p>
+        Dies sind die Bibliotheken, die für die Ausführung der Anwendung im Produktionsbetrieb erforderlich sind.
+    </p>
+    <ul>
+        <li>
+            <p><strong><code>react</code></strong>: <code>"^19.2.0"</code></p>
+            <p>Die Hauptbibliothek für die Erstellung von Benutzeroberflächen mit React.</p>
+        </li>
+        <li>
+            <p><strong><code>react-dom</code></strong>: <code>"^19.2.0"</code></p>
+            <p>Bietet DOM-spezifische Methoden, die React für die Interaktion mit dem Browser-DOM benötigt.</p>
+        </li>
+        <li>
+            <p><strong><code>@google/genai</code></strong>: <code>"^1.25.0"</code></p>
+            <p>Eine Bibliothek von Google, wahrscheinlich für die Integration von generativer KI (z.B. Gemini-Modelle) in die Anwendung.</p>
+        </li>
+    </ul>
+
+    <h3>Entwicklungsabhängigkeiten (<code>devDependencies</code>)</h3>
+    <p>
+        Dies sind Bibliotheken, die nur während der Entwicklung und des Builds des Projekts benötigt werden, aber nicht in der endgültigen Produktionsanwendung enthalten sein müssen.
+    </p>
+    <ul>
+        <li>
+            <p><strong><code>@types/node</code></strong>: <code>"^22.14.0"</code></p>
+            <p>Typdefinitionen für Node.js, die für die TypeScript-Entwicklung nützlich sind.</p>
+        </li>
+        <li>
+            <p><strong><code>@vitejs/plugin-react</code></strong>: <code>"^5.0.0"</code></p>
+            <p>Ein Vite-Plugin, das die React-Unterstützung in Vite-Projekten ermöglicht.</p>
+        </li>
+        <li>
+            <p><strong><code>typescript</code></strong>: <code>"~5.8.2"</code></p>
+            <p>Der TypeScript-Compiler, der für die statische Typisierung und Kompilierung des Codes verwendet wird.</p>
+        </li>
+        <li>
+            <p><strong><code>vite</code></strong>: <code>"^6.2.0"</code></p>
+            <p>Ein schneller Build-Tool und Entwicklungsserver, der für moderne Webprojekte optimiert ist.</p>
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/aiService.ts">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/aiService.ts</h2>
+    <p>
+        Dieser Dienst verwaltet das trainierte KI-Modell und bietet Funktionen zur Interaktion mit diesem Modell, insbesondere zur Auswahl einer Karte durch die KI. Er dient als zentrale Schnittstelle für die KI-Logik im Spiel.
+    </p>
+
+    <h3>Globale Variable: <code>trainedModel</code></h3>
+    <ul>
+        <li><strong>Zweck:</strong> Speichert das aktuell geladene und trainierte KI-Modell. Es ist standardmäßig <code>null</code>, bis ein Modell geladen wird.</li>
+        <li><strong>Typ:</strong> <code>TrainedModel | null</code></li>
+    </ul>
+
+    <h3>Funktion: <code>setTrainedModel</code></h3>
+    <p>
+        Setzt das globale trainierte KI-Modell, das für Vorhersagen verwendet werden soll.
+    </p>
+    <ul>
+        <li><strong>Parameter:</strong>
+            <ul>
+                <li><code>model</code>: Das zu setzende trainierte Modell vom Typ <code>TrainedModel</code>.</li>
+            </ul>
+        </li>
+        <li><strong>Rückgabewert:</strong> <code>void</code></li>
+    </ul>
+
+    <h3>Funktion: <code>isAiTrained</code></h3>
+    <p>
+        Überprüft, ob ein trainiertes KI-Modell geladen wurde.
+    </p>
+    <ul>
+        <li><strong>Parameter:</strong> Keine.</li>
+        <li><strong>Rückgabewert:</strong> <code>boolean</code> – <code>true</code>, wenn ein Modell geladen ist, sonst <code>false</code>.</li>
+    </ul>
+
+    <h3>Funktion: <code>chooseCard</code></h3>
+    <p>
+        Wählt eine Karte für die KI basierend auf dem aktuellen Spielzustand und der Hand der KI. Wenn ein trainiertes Modell verfügbar ist, wird dessen <code>predict</code>-Methode verwendet. Andernfalls wird eine zufällige Karte als Fallback gewählt.
+    </p>
+    <ul>
+        <li><strong>Parameter:</strong>
+            <ul>
+                <li><code>playerCard</code>: Die Karte des Spielers vom Typ <code>Card</code>.</li>
+                <li><code>aiHand</code>: Ein Array von Karten in der Hand der KI vom Typ <code>Card[]</code>.</li>
+                <li><code>gameState</code>: Der aktuelle Spielzustand vom Typ <code>any</code>.</li>
+            </ul>
+        </li>
+        <li><strong>Rückgabewert:</strong> <code>Card</code> – Die von der KI gewählte Karte.</li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/geminiService.ts">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/geminiService.ts</h2>
+    <p>Dieses Modul ist für die Integration des Google Gemini AI-Dienstes zuständig. Es ermöglicht die Generierung von Spielgeschichten basierend auf dem Verlauf einer Runenkrieg-Schlacht, indem es die Gemini API aufruft.</p>
+
+    <h3>Konfiguration und Initialisierung</h3>
+    <ul>
+        <li>
+            <h4><code>envKey</code></h4>
+            <p>Eine Konstante, die den Gemini API-Schlüssel aus den Umgebungsvariablen <code>VITE_GEMINI_API_KEY</code> oder <code>VITE_API_KEY</code> extrahiert. Wenn keiner der Schlüssel vorhanden ist, bleibt sie leer.</p>
+            <ul>
+                <li><strong>Typ:</strong> <code>string</code></li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>cachedApiKey</code></h4>
+            <p>Speichert den aktuell verwendeten Gemini API-Schlüssel. Wird initial mit <code>envKey</code> befüllt, falls dieser gültig ist.</p>
+            <ul>
+                <li><strong>Typ:</strong> <code>string | undefined</code></li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>client</code></h4>
+            <p>Die Instanz des <code>GoogleGenAI</code>-Clients. Wird initialisiert, wenn ein <code>cachedApiKey</code> verfügbar ist. Eine Warnung wird in der Konsole ausgegeben, wenn kein API-Schlüssel gefunden wird, was darauf hinweist, dass Gemini-Funktionen deaktiviert sind.</p>
+            <ul>
+                <li><strong>Typ:</strong> <code>GoogleGenAI | null</code></li>
+            </ul>
+        </li>
+    </ul>
+
+    <h3>Funktionen</h3>
+    <ul>
+        <li>
+            <h4><code>getClient(apiKeyOverride?: string): GoogleGenAI | null</code></h4>
+            <p>Diese Funktion stellt eine Singleton-Instanz des <code>GoogleGenAI</code>-Clients bereit. Sie ermöglicht das Überschreiben des API-Schlüssels zur Laufzeit oder verwendet den zuvor konfigurierten Schlüssel.</p>
+            <ul>
+                <li><strong>Parameter:</strong>
+                    <ul>
+                        <li><code>apiKeyOverride</code> (optional): Ein alternativer API-Schlüssel, der für diese spezifische Anfrage verwendet werden soll.</li>
+                    </ul>
+                </li>
+                <li><strong>Rückgabewert:</strong>
+                    <p>Eine Instanz von <code>GoogleGenAI</code>, wenn ein gültiger API-Schlüssel verfügbar ist, andernfalls <code>null</code>.</p>
+                </li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>generateGameStory(history: GameHistoryEntry[], finalWinner: Winner, playerHero: HeroName, aiHero: HeroName, apiKeyOverride?: string): Promise&lt;string&gt;</code></h4>
+            <p>Generiert eine epische Geschichte über eine abgeschlossene Runenkrieg-Schlacht mithilfe des Gemini AI-Modells. Die Geschichte basiert auf dem detaillierten Spielverlauf und den Helden der Spieler.</p>
+            <ul>
+                <li><strong>Parameter:</strong>
+                    <ul>
+                        <li><code>history</code>: Ein Array von <code>GameHistoryEntry</code>-Objekten, das den Verlauf jeder Runde der Schlacht detailliert beschreibt.</li>
+                        <li><code>finalWinner</code>: Der endgültige Gewinner der Schlacht (<code>'spieler'</code>, <code>'gegner'</code> oder <code>'unentschieden'</code>).</li>
+                        <li><code>playerHero</code>: Der Name des Helden, den der Spieler gewählt hat.</li>
+                        <li><code>aiHero</code>: Der Name des Helden, den die KI gewählt hat.</li>
+                        <li><code>apiKeyOverride</code> (optional): Ein alternativer API-Schlüssel, der speziell für diese Anfrage verwendet werden soll.</li>
+                    </ul>
+                </li>
+                <li><strong>Rückgabewert:</strong>
+                    <p>Eine <code>Promise</code>, die einen String mit der generierten Spielgeschichte auflöst. Bei einem Fehler oder wenn Gemini deaktiviert ist, wird eine entsprechende Fehlermeldung zurückgegeben.</p>
+                </li>
+                <li><strong>Logik:</strong>
+                    <p>Die Funktion formatiert den Spielverlauf und die Gewinnerinformationen in einen detaillierten Prompt für das Gemini-Modell. Sie ruft dann das <code>gemini-2.5-flash</code>-Modell auf, um eine kreative Zusammenfassung der Schlacht zu generieren. Fehler bei der API-Anfrage werden abgefangen und in der Konsole protokolliert.</p>
+                </li>
+            </ul>
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/trainingService.ts">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/services/trainingService.ts</h2>
+    <p>Dieses Modul enthält die Kernlogik für die Simulation von Spielrunden und das Training eines KI-Modells basierend auf diesen Simulationen. Es spiegelt die Spiellogik wider, um realistische Trainingsdaten zu generieren und ein kontextsensitives KI-Modell zu erstellen.</p>
+
+    <h3>Funktionen</h3>
+
+    <h4><code>calculateTotalValueInSim</code></h4>
+    <p>Berechnet den Gesamtwert einer Karte in einer Simulation, wobei die Hauptspiellogik gespiegelt wird. Diese Hilfsfunktion berücksichtigt Basisfähigkeiten, Wettereffekte, Elementhierarchie, Heldenboni und Moralboni basierend auf Token-Unterschieden.</p>
+    <ul>
+        <li><strong>Parameter:</strong>
+            <ul>
+                <li><code>ownCard: Card</code>: Die eigene Karte, deren Wert berechnet werden soll.</li>
+                <li><code>opponentCard: Card</code>: Die Karte des Gegners, relevant für Elementboni.</li>
+                <li><code>hero: HeroName</code>: Der Name des eigenen Helden, relevant für Heldenboni.</li>
+                <li><code>ownTokens: number</code>: Die Anzahl der eigenen Token.</li>
+                <li><code>opponentTokens: number</code>: Die Anzahl der gegnerischen Token.</li>
+                <li><code>currentWeather: WeatherType</code>: Das aktuelle Wetter, relevant für Wettereffekte.</li>
+            </ul>
+        </li>
+        <li><strong>Rückgabewert:</strong> <code>number</code> - Der berechnete Gesamtwert der Karte.</li>
+    </ul>
+
+    <h4><code>applyElementEffect</code></h4>
+    <p>Wendet Elementeffekte auf die Token der Spieler in einer Simulation an. Diese Funktion passt die Token-Anzahl basierend auf dem Gewinner und dem Element der Gewinnerkarte an.</p>
+    <ul>
+        <li><strong>Parameter:</strong>
+            <ul>
+                <li><code>winner: Winner</code>: Der Gewinner der Runde ('spieler', 'gegner' oder 'unentschieden').</li>
+                <li><code>winnerCard: Card</code>: Die Karte des Gewinners, deren Element den Effekt bestimmt.</li>
+                <li><code>pTokens: number</code>: Die aktuellen Token des Spielers.</li>
+                <li><code>aTokens: number</code>: Die aktuellen Token des KI-Gegners.</li>
+            </ul>
+        </li>
+        <li><strong>Rückgabewert:</strong> <code>[number, number]</code> - Ein Tupel, das die aktualisierten Token des Spielers und des KI-Gegners enthält.</li>
+    </ul>
+
+    <h4><code>determineWinnerInSim</code></h4>
+    <p>Bestimmt den Gewinner einer einzelnen Runde in der Simulation, indem die Gesamtkartenwerte beider Spieler verglichen werden.</p>
+    <ul>
+        <li><strong>Parameter:</strong>
+            <ul>
+                <li><code>playerCard: Card</code>: Die vom Spieler gespielte Karte.</li>
+                <li><code>aiCard: Card</code>: Die vom KI-Gegner gespielte Karte.</li>
+                <li><code>playerHero: HeroName</code>: Der Held des Spielers.</li>
+                <li><code>aiHero: HeroName</code>: Der Held des KI-Gegners.</li>
+                <li><code>pTokens: number</code>: Die aktuellen Token des Spielers.</li>
+                <li><code>aTokens: number</code>: Die aktuellen Token des KI-Gegners.</li>
+                <li><code>weather: WeatherType</code>: Das aktuelle Wetter.</li>
+            </ul>
+        </li>
+        <li><strong>Rückgabewert:</strong> <code>Winner</code> - Der Gewinner der Runde ('spieler', 'gegner' oder 'unentschieden').</li>
+    </ul>
+
+    <h4><code>generateDeck</code></h4>
+    <p>Erzeugt ein vollständiges Kartendeck, das alle Element- und Wertkombinationen enthält, und mischt es anschließend mit dem Fisher-Yates-Algorithmus.</p>
+    <ul>
+        <li><strong>Parameter:</strong> Keine.</li>
+        <li><strong>Rückgabewert:</strong> <code>Card[]</code> - Ein gemischtes Array von Karten.</li>
+    </ul>
+
+    <h4><code>simulateGames</code></h4>
+    <p>Führt eine angegebene Anzahl von vollständigen Spielen durch und sammelt die Ergebnisse jeder Runde. Jedes Spiel wird mit zufälligen Helden und Wetterbedingungen simuliert, wobei die Spiellogik für Kartenwerte und Elementeffekte genau nachgebildet wird.</p>
+    <ul>
+        <li><strong>Parameter:</strong>
+            <ul>
+                <li><code>numGames: number</code>: Die Anzahl der zu simulierenden Spiele.</li>
+            </ul>
+        </li>
+        <li><strong>Rückgabewert:</strong> <code>RoundResult[]</code> - Ein Array von Objekten, die die detaillierten Ergebnisse jeder simulierten Runde enthalten.</li>
+    </ul>
+
+    <h4><code>trainModel</code></h4>
+    <p>Trainiert ein KI-Modell basierend auf den Ergebnissen von Spielsimulationen. Das Modell lernt, welche KI-Karte in einem bestimmten Kontext (Spielerkarte, Wetter, Helden-Matchup, Token-Delta) die beste Gewinnrate für den KI-Gegner hat. Es generiert auch eine Analyse des Trainingsprozesses.</p>
+    <ul>
+        <li><strong>Parameter:</strong>
+            <ul>
+                <li><code>simulationData: RoundResult[]</code>: Ein Array von Simulationsergebnissen, die zum Training des Modells verwendet werden.</li>
+            </ul>
+        </li>
+        <li><strong>Rückgabewert:</strong> <code>TrainedModel</code> - Ein Objekt, das eine <code>predict</code>-Funktion und eine <code>analysis</code> der Trainingsdaten enthält.
+            <ul>
+                <li>Die <code>predict</code>-Funktion nimmt die Spielerkarte, die KI-Hand und den Spielzustand entgegen und gibt die vom Modell empfohlene KI-Karte zurück.</li>
+                <li>Die <code>analysis</code> enthält Metriken wie die Gesamtzahl der Kontexte, Kontexte mit soliden Daten, Kontexte, die mehr Daten benötigen, die durchschnittliche beste Gewinnrate und den besten Kontext, der im Training gefunden wurde.</li>
+            </ul>
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/tsconfig.json">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/tsconfig.json</h2>
+    <p>
+        Diese Datei, <code>tsconfig.json</code>, ist die Konfigurationsdatei für den TypeScript-Compiler in diesem Projekt. Sie definiert, wie der TypeScript-Code kompiliert werden soll, welche Sprachfunktionen verfügbar sind und wie Module aufgelöst werden. Eine korrekte Konfiguration ist entscheidend für die Entwicklung mit TypeScript, da sie die Typüberprüfung, die Kompilierung und die Integration mit anderen Tools wie Vite steuert.
+    </p>
+
+    <h3><code>compilerOptions</code></h3>
+    <p>
+        Der Abschnitt <code>compilerOptions</code> enthält eine Reihe von Einstellungen, die das Verhalten des TypeScript-Compilers beeinflussen:
+    </p>
+    <ul>
+        <li>
+            <p><code>target: "ES2022"</code></p>
+            <p>
+                Gibt die ECMAScript-Zielversion an, in die der TypeScript-Code kompiliert werden soll. "ES2022" bedeutet, dass der Code in eine Version von JavaScript übersetzt wird, die den Funktionen von ECMAScript 2022 entspricht.
+            </p>
+        </li>
+        <li>
+            <p><code>experimentalDecorators: true</code></p>
+            <p>
+                Aktiviert die Unterstützung für experimentelle Decorators, eine Sprachfunktion, die zur Annotation von Klassen, Methoden, Eigenschaften oder Parametern verwendet wird. Dies ist oft in Frameworks wie Angular oder bei der Verwendung von bestimmten Bibliotheken nützlich.
+            </p>
+        </li>
+        <li>
+            <p><code>useDefineForClassFields: false</code></p>
+            <p>
+                Steuert, wie Klassenfelder in JavaScript ausgegeben werden. Wenn auf <code>false</code> gesetzt, werden Klassenfelder über <code>Object.defineProperty</code> initialisiert, was ein älteres Verhalten ist. Bei <code>true</code> (Standard in neueren TypeScript-Versionen) werden sie direkt im Konstruktor initialisiert, was dem Standard von ECMAScript entspricht. Hier ist es auf <code>false</code> gesetzt, möglicherweise um Kompatibilität mit älteren Umgebungen oder spezifischen Bibliotheken zu gewährleisten.
+            </p>
+        </li>
+        <li>
+            <p><code>module: "ESNext"</code></p>
+            <p>
+                Gibt das Modulsystem an, das für den generierten JavaScript-Code verwendet werden soll. "ESNext" bedeutet, dass die neuesten ECMAScript-Modulstandards (ESM) verwendet werden, was für moderne Bundler wie Vite optimal ist.
+            </p>
+        </li>
+        <li>
+            <p><code>lib: ["ES2022", "DOM", "DOM.Iterable"]</code></p>
+            <p>
+                Definiert die Bibliotheksdateien, die während der Kompilierung in den globalen Gültigkeitsbereich aufgenommen werden sollen.
+                <ul>
+                    <li><code>ES2022</code>: Enthält Typdefinitionen für ECMAScript 2022-Funktionen.</li>
+                    <li><code>DOM</code>: Enthält Typdefinitionen für Browser-APIs (Document Object Model).</li>
+                    <li><code>DOM.Iterable</code>: Enthält Typdefinitionen für iterable DOM-Schnittstellen.</li>
+                </ul>
+            </p>
+        </li>
+        <li>
+            <p><code>skipLibCheck: true</code></p>
+            <p>
+                Überspringt die Typüberprüfung aller Deklarationsdateien (<code>.d.ts</code>), die von Drittanbieter-Bibliotheken stammen. Dies kann die Kompilierungszeit verkürzen und Fehler in externen Bibliotheken ignorieren, was in der Entwicklung oft praktisch ist.
+            </p>
+        </li>
+        <li>
+            <p><code>types: ["node"]</code></p>
+            <p>
+                Gibt an, welche Typdefinitionspakete (aus <code>node_modules/@types</code>) automatisch in das Projekt aufgenommen werden sollen. Hier wird das <code>node</code>-Paket hinzugefügt, was Typen für Node.js-Umgebungen bereitstellt.
+            </p>
+        </li>
+        <li>
+            <p><code>moduleResolution: "bundler"</code></p>
+            <p>
+                Definiert die Strategie zur Auflösung von Modulen. "bundler" ist eine moderne Strategie, die für Projekte optimiert ist, die einen Modul-Bundler wie Vite, Webpack oder Rollup verwenden. Sie ist effizienter und genauer bei der Auflösung von Modulen.
+            </p>
+        </li>
+        <li>
+            <p><code>isolatedModules: true</code></p>
+            <p>
+                Stellt sicher, dass jede Datei als separates Modul behandelt werden kann. Dies ist eine Anforderung für Tools wie Vite, die eine "transpile-only"-Kompilierung durchführen und keine Informationen über andere Dateien benötigen. Es erzwingt auch, dass alle Dateien entweder Module sind oder keine.
+            </p>
+        </li>
+        <li>
+            <p><code>moduleDetection: "force"</code></p>
+            <p>
+                Erzwingt, dass TypeScript jede Datei als Modul behandelt, unabhängig davon, ob sie <code>import</code>- oder <code>export</code>-Anweisungen enthält. Dies ist nützlich in Projekten, die mit Bundlern arbeiten, um sicherzustellen, dass alle Dateien korrekt isoliert werden.
+            </p>
+        </li>
+        <li>
+            <p><code>allowJs: true</code></p>
+            <p>
+                Ermöglicht dem TypeScript-Compiler, auch JavaScript-Dateien (<code>.js</code> und <code>.jsx</code>) zu verarbeiten und in das Projekt einzubeziehen. Dies ist nützlich für die Migration von JavaScript-Projekten zu TypeScript oder für Projekte, die eine Mischung aus beiden Sprachen verwenden.
+            </p>
+        </li>
+        <li>
+            <p><code>jsx: "react-jsx"</code></p>
+            <p>
+                Gibt an, wie JSX-Code transformiert werden soll. "react-jsx" verwendet die neue JSX-Transformationsfunktion von React, die keine explizite <code>import React from 'react'</code>-Anweisung in jeder Datei erfordert, die JSX verwendet.
+            </p>
+        </li>
+        <li>
+            <p><code>paths: { "@/*": ["./*"] }</code></p>
+            <p>
+                Definiert Pfad-Aliase, die die Modulauflösung vereinfachen. Hier wird <code>@/</code> als Alias für das Projekt-Root-Verzeichnis (<code>./</code>) festgelegt. Dies ermöglicht Importe wie <code>import { Card } from '@/components/Card'</code> anstelle von relativen Pfaden.
+            </p>
+        </li>
+        <li>
+            <p><code>allowImportingTsExtensions: true</code></p>
+            <p>
+                Ermöglicht das Importieren von Dateien mit TypeScript-Erweiterungen (z.B. <code>.ts</code>, <code>.tsx</code>) direkt in anderen TypeScript-Dateien, ohne die Erweiterung wegzulassen. Dies ist oft in modernen Bundler-Setups nützlich.
+            </p>
+        </li>
+        <li>
+            <p><code>noEmit: true</code></p>
+            <p>
+                Weist den TypeScript-Compiler an, keine JavaScript-Ausgabedateien zu generieren. Dies ist typisch für Projekte, die einen Bundler wie Vite verwenden, da der Bundler selbst die Kompilierung und Bündelung übernimmt. TypeScript wird hier hauptsächlich für die Typüberprüfung verwendet.
+            </p>
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/types.ts">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/types.ts</h2>
+    <p>Diese Datei definiert die grundlegenden Typen und Schnittstellen (Interfaces), die im gesamten Runenkrieg-Kartenspielprojekt verwendet werden. Sie stellt eine zentrale Quelle für die Strukturierung von Daten wie Karten, Spielerzuständen, Rundenresultaten, Simulations- und Trainingsanalysen sowie dem Spielverlauf dar.</p>
+
+    <h3>Typ-Aliase</h3>
+    <p>Die folgenden Typ-Aliase werden aus den Konstanten des Spiels abgeleitet, um Typsicherheit und Lesbarkeit zu gewährleisten.</p>
+
+    <ul>
+        <li>
+            <h4><code>ElementType</code></h4>
+            <p>Definiert die möglichen Elementtypen einer Karte. Abgeleitet von den Werten im <code>ELEMENTS</code>-Array aus <code>constants.ts</code>.</p>
+            <p><strong>Typ:</strong> <code>typeof ELEMENTS[number]</code></p>
+        </li>
+        <li>
+            <h4><code>ValueType</code></h4>
+            <p>Definiert die möglichen Werttypen (Fähigkeiten) einer Karte. Abgeleitet von den Werten im <code>ABILITIES</code>-Array aus <code>constants.ts</code>.</p>
+            <p><strong>Typ:</strong> <code>typeof ABILITIES[number]</code></p>
+        </li>
+        <li>
+            <h4><code>HeroName</code></h4>
+            <p>Definiert die möglichen Namen der Helden. Abgeleitet von den Schlüsseln des <code>HEROES</code>-Objekts aus <code>constants.ts</code>.</p>
+            <p><strong>Typ:</strong> <code>keyof typeof HEROES</code></p>
+        </li>
+        <li>
+            <h4><code>WeatherType</code></h4>
+            <p>Definiert die möglichen Wettereffekte im Spiel. Abgeleitet von den Schlüsseln des <code>WEATHER_EFFECTS</code>-Objekts aus <code>constants.ts</code>.</p>
+            <p><strong>Typ:</strong> <code>keyof typeof WEATHER_EFFECTS</code></p>
+        </li>
+        <li>
+            <h4><code>Winner</code></h4>
+            <p>Definiert die möglichen Ausgänge einer Spielrunde oder eines Spiels.</p>
+            <p><strong>Typ:</strong> <code>"spieler" | "gegner" | "unentschieden"</code></p>
+        </li>
+    </ul>
+
+    <h3>Schnittstellen (Interfaces)</h3>
+    <p>Die folgenden Schnittstellen definieren die Struktur komplexerer Datenobjekte, die im Spiel verwendet werden.</p>
+
+    <ul>
+        <li>
+            <h4><code>Card</code></h4>
+            <p>Repräsentiert eine einzelne Spielkarte mit ihren Eigenschaften.</p>
+            <ul>
+                <li><code>element</code>: <code>ElementType</code> - Das Element der Karte (z.B. Feuer, Wasser).</li>
+                <li><code>wert</code>: <code>ValueType</code> - Der Wert oder die Fähigkeit der Karte (z.B. Angriff, Verteidigung).</li>
+                <li><code>id</code>: <code>string</code> - Eine eindeutige Kennung für die Karte.</li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>Player</code></h4>
+            <p>Repräsentiert den Zustand eines Spielers.</p>
+            <ul>
+                <li><code>hand</code>: <code>Card[]</code> - Die Karten, die der Spieler auf der Hand hat.</li>
+                <li><code>tokens</code>: <code>number</code> - Die aktuellen Token des Spielers.</li>
+                <li><code>hero</code>: <code>HeroName</code> - Der Held, den der Spieler gewählt hat.</li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>RoundResult</code></h4>
+            <p>Speichert die detaillierten Ergebnisse einer einzelnen Spielrunde.</p>
+            <ul>
+                <li><code>spieler_karte</code>: <code>string</code> - Die ID der vom Spieler gespielten Karte.</li>
+                <li><code>gegner_karte</code>: <code>string</code> - Die ID der vom Gegner gespielten Karte.</li>
+                <li><code>spieler_token_vorher</code>: <code>number</code> - Die Token des Spielers vor der Runde.</li>
+                <li><code>gegner_token_vorher</code>: <code>number</code> - Die Token des Gegners vor der Runde.</li>
+                <li><code>spieler_token</code>: <code>number</code> - Die Token des Spielers nach der Runde.</li>
+                <li><code>gegner_token</code>: <code>number</code> - Die Token des Gegners nach der Runde.</li>
+                <li><code>wetter</code>: <code>WeatherType</code> - Der Wettereffekt, der in dieser Runde aktiv war.</li>
+                <li><code>spieler_held</code>: <code>HeroName</code> - Der Held des Spielers in dieser Runde.</li>
+                <li><code>gegner_held</code>: <code>HeroName</code> - Der Held des Gegners in dieser Runde.</li>
+                <li><code>gewinner</code>: <code>Winner</code> - Der Gewinner der Runde.</li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>SimulationAnalysis</code></h4>
+            <p>Stellt die Ergebnisse einer umfassenden Spielsimulation dar, die über mehrere Runden oder Spiele hinweg gesammelt wurden.</p>
+            <ul>
+                <li><code>totalRounds</code>: <code>number</code> - Die Gesamtzahl der simulierten Runden.</li>
+                <li><code>playerWins</code>: <code>number</code> - Die Anzahl der Runden, die der Spieler gewonnen hat.</li>
+                <li><code>aiWins</code>: <code>number</code> - Die Anzahl der Runden, die die KI gewonnen hat.</li>
+                <li><code>draws</code>: <code>number</code> - Die Anzahl der unentschiedenen Runden.</li>
+                <li><code>playerWinRate</code>: <code>number</code> - Die Gewinnrate des Spielers (in Prozent).</li>
+                <li><code>aiWinRate</code>: <code>number</code> - Die Gewinnrate der KI (in Prozent).</li>
+                <li><code>averagePlayerTokens</code>: <code>number</code> - Die durchschnittliche Anzahl der Token des Spielers.</li>
+                <li><code>averageAiTokens</code>: <code>number</code> - Die durchschnittliche Anzahl der Token der KI.</li>
+                <li><code>mostCommonPlayerCard</code>: <code>string | null</code> - Die am häufigsten vom Spieler gespielte Karte.</li>
+                <li><code>mostCommonAiCard</code>: <code>string | null</code> - Die am häufigsten von der KI gespielte Karte.</li>
+                <li><code>mostCommonWeather</code>: <code>WeatherType | null</code> - Das am häufigsten aufgetretene Wetter.</li>
+                <li><code>mostCommonPlayerHero</code>: <code>HeroName | null</code> - Der am häufigsten vom Spieler gewählte Held.</li>
+                <li><code>mostCommonAiHero</code>: <code>HeroName | null</code> - Der am häufigsten von der KI gewählte Held.</li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>TrainingAnalysis</code></h4>
+            <p>Enthält Metriken und Erkenntnisse aus dem Trainingsprozess eines KI-Modells.</p>
+            <ul>
+                <li><code>totalContexts</code>: <code>number</code> - Die Gesamtzahl der analysierten Spielkontexte.</li>
+                <li><code>contextsWithSolidData</code>: <code>number</code> - Die Anzahl der Kontexte mit ausreichenden Daten für eine fundierte Entscheidung.</li>
+                <li><code>contextsNeedingData</code>: <code>number</code> - Die Anzahl der Kontexte, für die weitere Daten benötigt werden.</li>
+                <li><code>averageBestWinRate</code>: <code>number</code> - Die durchschnittliche beste Gewinnrate über alle Kontexte.</li>
+                <li><code>bestContext?</code>: <code>{ playerCard: string; weather: WeatherType; playerHero: HeroName; aiHero: HeroName; tokenDelta: number; aiCard: string; winRate: number; observations: number; }</code> - Optional: Details zum Kontext mit der höchsten Gewinnrate.</li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>TrainedModel</code></h4>
+            <p>Definiert die Struktur eines trainierten KI-Modells, das Vorhersagen treffen kann und eine Trainingsanalyse enthält.</p>
+            <ul>
+                <li><code>predict</code>: <code>(playerCard: Card, aiHand: Card[], gameState: any) => Card</code> - Eine Funktion, die basierend auf dem Spielzustand die nächste Karte der KI vorhersagt.</li>
+                <li><code>analysis</code>: <code>TrainingAnalysis</code> - Die Analyseergebnisse des Trainings dieses Modells.</li>
+            </ul>
+        </li>
+        <li>
+            <h4><code>GameHistoryEntry</code></h4>
+            <p>Repräsentiert einen Eintrag im Spielverlauf, der die wichtigsten Informationen einer Runde zusammenfasst.</p>
+            <ul>
+                <li><code>round</code>: <code>number</code> - Die Nummer der Runde.</li>
+                <li><code>playerCard</code>: <code>Card</code> - Die vom Spieler gespielte Karte.</li>
+                <li><code>aiCard</code>: <code>Card</code> - Die von der KI gespielte Karte.</li>
+                <li><code>weather</code>: <code>WeatherType</code> - Das Wetter, das in dieser Runde aktiv war.</li>
+                <li><code>winner</code>: <code>Winner</code> - Der Gewinner dieser Runde.</li>
+                <li><code>playerTokens</code>: <code>number</code> - Die Token des Spielers nach dieser Runde.</li>
+                <li><code>aiTokens</code>: <code>number</code> - Die Token der KI nach dieser Runde.</li>
+            </ul>
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/vite.config.ts">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/vite.config.ts</h2>
+    <p>
+        Diese Datei konfiguriert den Vite-Build-Prozess für das Projekt. Sie definiert, wie die Entwicklungsumgebung und der Build-Prozess funktionieren sollen, einschließlich Server-Einstellungen, Plugins und Alias-Auflösungen.
+    </p>
+
+    <h3><code>defineConfig</code> (Standardexport)</h3>
+    <p>
+        Die Hauptkonfiguration für Vite wird über die Funktion <code>defineConfig</code> bereitgestellt. Diese Funktion nimmt ein Objekt entgegen, das die verschiedenen Aspekte der Vite-Konfiguration definiert.
+    </p>
+    <ul>
+        <li>
+            <strong>Zweck:</strong> Definiert die Vite-Konfiguration für das Projekt, einschließlich Entwicklungsserver, Plugins, Umgebungsvariablen und Pfad-Aliase.
+        </li>
+        <li>
+            <strong>Parameter:</strong>
+            <ul>
+                <li>
+                    <code>{ mode }</code>: Ein Objekt, das den aktuellen Modus (z.B. 'development' oder 'production') enthält. Dies wird verwendet, um Umgebungsvariablen entsprechend zu laden.
+                </li>
+            </ul>
+        </li>
+        <li>
+            <strong>Rückgabewert:</strong> Ein Konfigurationsobjekt für Vite mit folgenden Eigenschaften:
+            <ul>
+                <li>
+                    <code>server</code>: Konfiguriert den Entwicklungsserver.
+                    <ul>
+                        <li><code>port: 3000</code>: Der Port, auf dem der Entwicklungsserver läuft.</li>
+                        <li><code>host: '0.0.0.0'</code>: Der Host, auf dem der Server lauscht, wodurch er von externen Geräten im Netzwerk erreichbar ist.</li>
+                    </ul>
+                </li>
+                <li>
+                    <code>plugins</code>: Ein Array von Vite-Plugins.
+                    <ul>
+                        <li><code>react()</code>: Aktiviert das offizielle Vite-Plugin für React, das die Hot Module Replacement (HMR) und andere React-spezifische Optimierungen ermöglicht.</li>
+                    </ul>
+                </li>
+                <li>
+                    <code>define</code>: Ermöglicht das Definieren globaler Konstanten, die während des Build-Prozesses ersetzt werden.
+                    <ul>
+                        <li><code>'process.env.API_KEY'</code>: Setzt den Wert von <code>process.env.API_KEY</code> auf den Wert der Umgebungsvariable <code>GEMINI_API_KEY</code>.</li>
+                        <li><code>'process.env.GEMINI_API_KEY'</code>: Setzt den Wert von <code>process.env.GEMINI_API_KEY</code> ebenfalls auf den Wert der Umgebungsvariable <code>GEMINI_API_KEY</code>. Dies stellt sicher, dass API-Schlüssel sicher über Umgebungsvariablen verwaltet werden können.</li>
+                    </ul>
+                </li>
+                <li>
+                    <code>resolve</code>: Konfiguriert, wie Module aufgelöst werden.
+                    <ul>
+                        <li>
+                            <code>alias</code>: Definiert Aliase für Modulpfade.
+                            <ul>
+                                <li><code>'@': path.resolve(__dirname, '.')</code>: Erstellt einen Alias <code>@</code>, der auf das Stammverzeichnis des Projekts verweist. Dies vereinfacht Importe, indem absolute Pfade relativ zum Projektstamm verwendet werden können (z.B. <code>import MyComponent from '@/components/MyComponent'</code>).</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </li>
+    </ul>
+</section>
+<section id="Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/AI_DOKU.md">
+    <h2>Runenkrieg-AI-Card-Game-codex-add-simulations-analysis-and-training-analysis/AI_DOKU.md</h2>
+    <p>Dieses Dokument beschreibt das KI-System des Runenkrieg-Kartenspiels, insbesondere wie Simulationen für Trainingseinheiten ablaufen und wie das KI-Training selbst funktioniert. Ziel ist es, ein Verständnis für die Mechanismen zu schaffen, die es der KI ermöglichen, strategische Entscheidungen zu treffen und sich kontinuierlich zu verbessern.</p>
+    <p>Das Runenkrieg-Kartenspiel ist ein rundenbasiertes Strategiespiel, bei dem Spieler Karten ausspielen, um ihre Gegner zu besiegen. Die KI muss in der Lage sein, die Spielregeln zu verstehen, den Spielzustand zu analysieren und optimale Züge auszuwählen.</p>
+
+    <h3>Simulationsablauf für Trainingseinheiten</h3>
+    <h4>Was ist die Simulation?</h4>
+    <p>Die Simulation ist ein Kernbestandteil des KI-Trainingsprozesses. Sie ermöglicht es, eine große Anzahl von Spielen in einer kontrollierten Umgebung schnell und effizient durchzuführen, ohne auf menschliche Interaktion angewiesen zu sein. Jede Simulation ist ein vollständiges Spiel von Anfang bis Ende, bei dem die KI entweder gegen sich selbst, gegen eine andere KI-Version oder gegen eine vordefinierte Logik antritt.</p>
+
+    <h4>Wie funktioniert die Simulation?</h4>
+    <p>Der <code>trainingService.ts</code> ist für die Orchestrierung der Simulationen zuständig. Er initiiert und verwaltet die Spielinstanzen, die für das Training benötigt werden.</p>
+    <ol>
+        <li><strong>Spielinitialisierung:</strong> Für jede Simulation wird ein neues Spiel initialisiert. Dies beinhaltet das Mischen der Decks, das Austeilen der Startkarten und das Festlegen des Startspielers.</li>
+        <li><strong>Rundenbasierter Ablauf:</strong> Das Spiel läuft rundenbasiert ab, genau wie ein normales Spiel.
+            <ul>
+                <li><strong>Zugphase:</strong> Wenn ein Spieler (oder eine KI) am Zug ist, wird der aktuelle Spielzustand an die entscheidende Instanz (z.B. <code>aiService.ts</code>) übergeben.</li>
+                <li><strong>Entscheidungsfindung:</strong> Die KI analysiert den Spielzustand (verfügbare Karten auf der Hand, Karten auf dem Spielfeld, Lebenspunkte, Runen, Friedhof, etc.) und wählt basierend auf ihrer aktuellen Strategie den besten Zug aus. Dies kann das Ausspielen einer Karte, das Aktivieren einer Fähigkeit oder das Passen sein.</li>
+                <li><strong>Zugausführung:</strong> Der ausgewählte Zug wird im Spiel ausgeführt, was zu einer Aktualisierung des Spielzustands führt.</li>
+            </ul>
+        </li>
+        <li><strong>Spielende:</strong> Das Spiel endet, wenn eine der Siegbedingungen erfüllt ist (z.B. Lebenspunkte des Gegners auf Null reduziert, Deck leer und keine Karten mehr ziehbar).</li>
+        <li><strong>Ergebnisprotokollierung:</strong> Nach jedem Spiel werden wichtige Informationen wie der Gewinner, die Dauer des Spiels, die gespielten Züge und möglicherweise Zwischenstände protokolliert. Diese Daten sind entscheidend für das spätere Training.</li>
+    </ol>
+
+    <h4>Warum wird simuliert?</h4>
+    <ul>
+        <li><strong>Effizienz:</strong> Simulationen ermöglichen es, Tausende oder sogar Millionen von Spielen in kurzer Zeit durchzuführen, was für das Training von maschinellen Lernmodellen unerlässlich ist.</li>
+        <li><strong>Kontrollierte Umgebung:</strong> Die Simulationsumgebung ist deterministisch und reproduzierbar. Dies ist wichtig, um die Auswirkungen von Änderungen an der KI-Logik oder den Trainingsparametern genau bewerten zu können.</li>
+        <li><strong>Datenbeschaffung:</strong> Jede Simulation generiert wertvolle Daten über Spielzustände und die entsprechenden optimalen Züge, die als Trainingsdaten für die KI verwendet werden können.</li>
+        <li><strong>Risikofreies Experimentieren:</strong> Neue Strategien oder KI-Modelle können in der Simulation getestet werden, ohne das Risiko einzugehen, die Leistung in einer Live-Umgebung zu beeinträchtigen.</li>
+    </ul>
+
+    <h3>KI-Training</h3>
+    <h4>Was ist das KI-Training?</h4>
+    <p>Das KI-Training ist der Prozess, bei dem die KI lernt, bessere Entscheidungen im Spiel zu treffen. Es nutzt die Daten aus den Simulationen, um die internen Parameter oder Modelle der KI anzupassen, sodass sie in zukünftigen Spielen erfolgreicher ist.</p>
+
+    <h4>Wie funktioniert das KI-Training?</h4>
+    <p>Der <code>aiService.ts</code> ist der zentrale Dienst für die KI-Logik und das Training. Er beherbergt das eigentliche KI-Modell und die Algorithmen, die für die Entscheidungsfindung und das Lernen verantwortlich sind.</p>
+    <ol>
+        <li><strong>Datensammlung:</strong> Wie oben beschrieben, werden durch Simulationen große Mengen an Spieldaten gesammelt. Diese Daten umfassen Spielzustände, die von der KI getroffenen Entscheidungen und die Ergebnisse dieser Entscheidungen (Gewinn/Verlust).</li>
+        <li><strong>Modellauswahl:</strong> Je nach Komplexität und Anforderungen kann die KI verschiedene Lernansätze verwenden:
+            <ul>
+                <li><strong>Regelbasierte KI:</strong> Eine grundlegende KI könnte auf einem Satz von vordefinierten Regeln basieren (z.B. "Spiele immer die Karte, die den meisten Schaden verursacht"). Diese Regeln können manuell optimiert werden.</li>
+                <li><strong>Monte-Carlo Tree Search (MCTS):</strong> Eine fortgeschrittenere KI könnte MCTS verwenden, um zukünftige Spielzustände zu simulieren und den besten Zug basierend auf den Ergebnissen dieser internen Simulationen zu finden. Das Training würde hier die Bewertungsfunktion für die Knoten im Baum verbessern.</li>
+                <li><strong>Reinforcement Learning (RL):</strong> Die anspruchsvollste Methode, bei der die KI durch "Versuch und Irrtum" lernt. Sie erhält Belohnungen für gute Züge (z.B. Schaden verursachen, Spiel gewinnen) und Bestrafungen für schlechte Züge. Ein neuronales Netz könnte verwendet werden, um eine Politik (welchen Zug man machen soll) oder eine Wertfunktion (wie gut ein Spielzustand ist) zu lernen.</li>
+            </ul>
+        </li>
+        <li><strong>Modellaktualisierung:</strong> Basierend auf den gesammelten Daten und dem gewählten Lernalgorithmus wird das KI-Modell aktualisiert.
+            <ul>
+                <li>Bei regelbasierten Systemen könnten dies Anpassungen an den Prioritäten der Regeln sein.</li>
+                <li>Bei MCTS könnte die Bewertungsfunktion, die die Knoten im Suchbaum bewertet, durch ein neuronales Netz ersetzt und trainiert werden.</li>
+                <li>Bei Reinforcement Learning werden die Gewichte und Biases eines neuronalen Netzes angepasst, um die Vorhersagen der Politik oder Wertfunktion zu verbessern.</li>
+            </ul>
+        </li>
+        <li><strong>Evaluierung:</strong> Nach einer Trainingsphase wird die neue Version der KI gegen die vorherige Version oder eine Benchmark-KI in weiteren Simulationen getestet, um ihre Leistungsverbesserung zu bewerten.</li>
+        <li><strong>Iterativer Prozess:</strong> Der gesamte Prozess der Datensammlung, des Trainings und der Evaluierung ist iterativ. Die KI lernt kontinuierlich, indem sie neue Daten generiert und ihr Modell immer wieder verfeinert.</li>
+    </ol>
+
+    <h4>Warum wird die KI trainiert?</h4>
+    <ul>
+        <li><strong>Leistungsverbesserung:</strong> Das Hauptziel ist es, die KI so zu verbessern, dass sie immer bessere Entscheidungen trifft und eine größere Gewinnwahrscheinlichkeit gegen menschliche Spieler oder andere KIs hat.</li>
+        <li><strong>Anpassungsfähigkeit:</strong> Durch Training kann die KI lernen, sich an verschiedene Spielstile, Deckzusammenstellungen und Metas anzupassen.</li>
+        <li><strong>Entdeckung neuer Strategien:</strong> Eine gut trainierte KI kann möglicherweise Strategien entdecken, die für menschliche Spieler nicht offensichtlich waren.</li>
+        <li><strong>Robuste Entscheidungsfindung:</strong> Das Training hilft der KI, auch in komplexen oder unerwarteten Spielsituationen robuste und logische Entscheidungen zu treffen.</li>
+        <li><strong>Automatisierung der Entwicklung:</strong> Anstatt jede Regel manuell zu programmieren, kann die KI durch Training selbstständig lernen, was zu einer effizienteren Entwicklung führt.</li>
+    </ul>
+    <p>Zusammenfassend lässt sich sagen, dass die Kombination aus schnellen Simulationen und einem iterativen Trainingsprozess es dem Runenkrieg-KI-System ermöglicht, sich kontinuierlich zu verbessern und ein herausfordernder Gegner zu sein.</p>
+</section>
+    </main>
+</body>
+</html>
