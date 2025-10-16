@@ -89,6 +89,12 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
 
   const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
   const formatNumber = (value: number) => value.toLocaleString('de-DE');
+  const formatTokenDelta = (delta: number) => (delta > 0 ? `+${delta}` : `${delta}`);
+  const describeTokenAdvantage = (delta: number) => {
+    if (delta > 0) return 'zugunsten des Spielers';
+    if (delta < 0) return 'zugunsten der KI';
+    return 'ohne Token-Vorsprung';
+  };
   
   const handleSimulate = useCallback(() => {
     setIsSimulating(true);
@@ -244,6 +250,14 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
                             Spielerkarte <span className="text-purple-300">{trainingAnalysis.bestContext.playerCard}</span> bei Wetter{' '}
                             <span className="text-purple-300">{trainingAnalysis.bestContext.weather}</span> wird am besten mit{' '}
                             <span className="text-purple-300">{trainingAnalysis.bestContext.aiCard}</span> beantwortet.
+                        </p>
+                        <p className="mt-2">
+                            Helden-Duell:{' '}
+                            <span className="text-purple-300">{trainingAnalysis.bestContext.playerHero}</span> vs.{' '}
+                            <span className="text-purple-300">{trainingAnalysis.bestContext.aiHero}</span>
+                            {' '}bei einer Token-Differenz von{' '}
+                            <span className="text-purple-300">{formatTokenDelta(trainingAnalysis.bestContext.tokenDelta)}</span>{' '}
+                            {describeTokenAdvantage(trainingAnalysis.bestContext.tokenDelta)}.
                         </p>
                         <p>
                             Siegquote: <span className="text-green-400">{formatPercent(trainingAnalysis.bestContext.winRate)}</span> auf Grundlage von{' '}

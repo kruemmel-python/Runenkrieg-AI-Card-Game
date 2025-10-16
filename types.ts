@@ -21,6 +21,8 @@ export interface Player {
 export interface RoundResult {
   spieler_karte: string;
   gegner_karte: string;
+  spieler_token_vorher: number;
+  gegner_token_vorher: number;
   spieler_token: number;
   gegner_token: number;
   wetter: WeatherType;
@@ -53,6 +55,9 @@ export interface TrainingAnalysis {
   bestContext?: {
     playerCard: string;
     weather: WeatherType;
+    playerHero: HeroName;
+    aiHero: HeroName;
+    tokenDelta: number;
     aiCard: string;
     winRate: number;
     observations: number;
