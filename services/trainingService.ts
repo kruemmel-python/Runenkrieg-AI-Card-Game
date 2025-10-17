@@ -25,6 +25,7 @@ import {
     HEROES,
     CARD_TYPES,
     ABILITY_MECHANICS,
+    START_TOKENS,
 } from '../constants';
 import {
     evaluateElementSynergy,
@@ -33,6 +34,344 @@ import {
 } from './mechanicEngine';
 
 const WILSON_Z = 1.96;
+
+const clampTokenDelta = (delta: number) => Math.max(-5, Math.min(5, delta));
+
+const parseCardLabel = (
+    cardLabel: string
+): { element: ElementType; ability: ValueType } => {
+    const [element, ...abilityParts] = cardLabel.split(' ');
+    return {
+        element: element as ElementType,
+        ability: abilityParts.join(' ') as ValueType,
+    };
+};
+
+const createCardTemplate = (label: string, idSuffix: string): Card => {
+    const { element, ability } = parseCardLabel(label);
+    const elementIndex = ELEMENTS.indexOf(element);
+    const abilityIndex = ABILITIES.indexOf(ability);
+    const cardType = CARD_TYPES[(elementIndex + abilityIndex) % CARD_TYPES.length];
+
+    return {
+        element,
+        wert: ability,
+        id: `${element}-${ability}-${idSuffix}`,
+        cardType: cardType.name,
+        mechanics: ABILITY_MECHANICS[ability] || [],
+        lifespan: cardType.defaultLifespan,
+        charges: cardType.defaultCharges,
+    };
+};
+
+type FocusContext = {
+    playerCard: string;
+    aiCard: string;
+    weather: WeatherType;
+    playerHero: HeroName;
+    aiHero: HeroName;
+    tokenDelta: number;
+    sampleRate: number;
+    targetAiWinRate: number;
+    priorWeight: number;
+};
+
+type FocusContextDetail = FocusContext & {
+    contextKey: string;
+    clampedDelta: number;
+};
+
+const buildContextKey = (params: {
+    playerCard: string;
+    weather: WeatherType;
+    playerHero: HeroName;
+    aiHero: HeroName;
+    tokenDelta: number;
+}): string => {
+    const clampedDelta = clampTokenDelta(params.tokenDelta);
+    return `${params.playerCard}|${params.weather}|${params.playerHero}vs${params.aiHero}|delta:${clampedDelta}`;
+};
+
+// Focused contexts derived from recent training analysis to reinforce underperforming matchups
+// and simulation planner priorities. Each entry defines an injected simulation focus as well as
+// priors for the training statistics so the AI reacts quicker in these fragile situations.
+const WEAK_CONTEXT_FOCUS: FocusContextDetail[] = [
+    {
+        playerCard: 'Licht Avatar',
+        aiCard: 'Chaos Avatar',
+        weather: 'Erdbeben',
+        playerHero: 'Zauberer',
+        aiHero: 'Drache',
+        tokenDelta: 5,
+        sampleRate: 0.03,
+        targetAiWinRate: 0.68,
+        priorWeight: 6,
+        contextKey: buildContextKey({
+            playerCard: 'Licht Avatar',
+            weather: 'Erdbeben',
+            playerHero: 'Zauberer',
+            aiHero: 'Drache',
+            tokenDelta: 5,
+        }),
+        clampedDelta: clampTokenDelta(5),
+    },
+    {
+        playerCard: 'Licht Elementar',
+        aiCard: 'Chaos Avatar',
+        weather: 'Erdbeben',
+        playerHero: 'Drache',
+        aiHero: 'Drache',
+        tokenDelta: 5,
+        sampleRate: 0.025,
+        targetAiWinRate: 0.62,
+        priorWeight: 5,
+        contextKey: buildContextKey({
+            playerCard: 'Licht Elementar',
+            weather: 'Erdbeben',
+            playerHero: 'Drache',
+            aiHero: 'Drache',
+            tokenDelta: 5,
+        }),
+        clampedDelta: clampTokenDelta(5),
+    },
+    {
+        playerCard: 'Luft Elementar',
+        aiCard: 'Schatten Avatar',
+        weather: 'Windsturm',
+        playerHero: 'Zauberer',
+        aiHero: 'Zauberer',
+        tokenDelta: 5,
+        sampleRate: 0.025,
+        targetAiWinRate: 0.6,
+        priorWeight: 5,
+        contextKey: buildContextKey({
+            playerCard: 'Luft Elementar',
+            weather: 'Windsturm',
+            playerHero: 'Zauberer',
+            aiHero: 'Zauberer',
+            tokenDelta: 5,
+        }),
+        clampedDelta: clampTokenDelta(5),
+    },
+    {
+        playerCard: 'Licht Elementar',
+        aiCard: 'Licht Avatar',
+        weather: 'Regen',
+        playerHero: 'Drache',
+        aiHero: 'Zauberer',
+        tokenDelta: 5,
+        sampleRate: 0.025,
+        targetAiWinRate: 0.65,
+        priorWeight: 5,
+        contextKey: buildContextKey({
+            playerCard: 'Licht Elementar',
+            weather: 'Regen',
+            playerHero: 'Drache',
+            aiHero: 'Zauberer',
+            tokenDelta: 5,
+        }),
+        clampedDelta: clampTokenDelta(5),
+    },
+    {
+        playerCard: 'Schatten Avatar',
+        aiCard: 'Magie Elementar',
+        weather: 'Windsturm',
+        playerHero: 'Drache',
+        aiHero: 'Drache',
+        tokenDelta: 5,
+        sampleRate: 0.02,
+        targetAiWinRate: 0.58,
+        priorWeight: 4,
+        contextKey: buildContextKey({
+            playerCard: 'Schatten Avatar',
+            weather: 'Windsturm',
+            playerHero: 'Drache',
+            aiHero: 'Drache',
+            tokenDelta: 5,
+        }),
+        clampedDelta: clampTokenDelta(5),
+    },
+    {
+        playerCard: 'Luft Avatar',
+        aiCard: 'Luft Flamme',
+        weather: 'Windsturm',
+        playerHero: 'Zauberer',
+        aiHero: 'Drache',
+        tokenDelta: 3,
+        sampleRate: 0.02,
+        targetAiWinRate: 0.6,
+        priorWeight: 4,
+        contextKey: buildContextKey({
+            playerCard: 'Luft Avatar',
+            weather: 'Windsturm',
+            playerHero: 'Zauberer',
+            aiHero: 'Drache',
+            tokenDelta: 3,
+        }),
+        clampedDelta: clampTokenDelta(3),
+    },
+    {
+        playerCard: 'Licht Avatar',
+        aiCard: 'Luft Akolyth',
+        weather: 'Erdbeben',
+        playerHero: 'Drache',
+        aiHero: 'Zauberer',
+        tokenDelta: 4,
+        sampleRate: 0.02,
+        targetAiWinRate: 0.6,
+        priorWeight: 4,
+        contextKey: buildContextKey({
+            playerCard: 'Licht Avatar',
+            weather: 'Erdbeben',
+            playerHero: 'Drache',
+            aiHero: 'Zauberer',
+            tokenDelta: 4,
+        }),
+        clampedDelta: clampTokenDelta(4),
+    },
+    {
+        playerCard: 'Luft Avatar',
+        aiCard: 'Feuer Flamme',
+        weather: 'Windsturm',
+        playerHero: 'Zauberer',
+        aiHero: 'Zauberer',
+        tokenDelta: 4,
+        sampleRate: 0.02,
+        targetAiWinRate: 0.58,
+        priorWeight: 4,
+        contextKey: buildContextKey({
+            playerCard: 'Luft Avatar',
+            weather: 'Windsturm',
+            playerHero: 'Zauberer',
+            aiHero: 'Zauberer',
+            tokenDelta: 4,
+        }),
+        clampedDelta: clampTokenDelta(4),
+    },
+    {
+        playerCard: 'Licht Avatar',
+        aiCard: 'Magie Supernova',
+        weather: 'Windsturm',
+        playerHero: 'Zauberer',
+        aiHero: 'Drache',
+        tokenDelta: 4,
+        sampleRate: 0.02,
+        targetAiWinRate: 0.62,
+        priorWeight: 4,
+        contextKey: buildContextKey({
+            playerCard: 'Licht Avatar',
+            weather: 'Windsturm',
+            playerHero: 'Zauberer',
+            aiHero: 'Drache',
+            tokenDelta: 4,
+        }),
+        clampedDelta: clampTokenDelta(4),
+    },
+    {
+        playerCard: 'Licht Avatar',
+        aiCard: 'Chaos Avatar',
+        weather: 'Windsturm',
+        playerHero: 'Zauberer',
+        aiHero: 'Drache',
+        tokenDelta: 5,
+        sampleRate: 0.025,
+        targetAiWinRate: 0.66,
+        priorWeight: 6,
+        contextKey: buildContextKey({
+            playerCard: 'Licht Avatar',
+            weather: 'Windsturm',
+            playerHero: 'Zauberer',
+            aiHero: 'Drache',
+            tokenDelta: 5,
+        }),
+        clampedDelta: clampTokenDelta(5),
+    },
+    {
+        playerCard: 'Licht Avatar',
+        aiCard: 'Wasser Avatar',
+        weather: 'Regen',
+        playerHero: 'Drache',
+        aiHero: 'Zauberer',
+        tokenDelta: 5,
+        sampleRate: 0.02,
+        targetAiWinRate: 0.6,
+        priorWeight: 4,
+        contextKey: buildContextKey({
+            playerCard: 'Licht Avatar',
+            weather: 'Regen',
+            playerHero: 'Drache',
+            aiHero: 'Zauberer',
+            tokenDelta: 5,
+        }),
+        clampedDelta: clampTokenDelta(5),
+    },
+    {
+        playerCard: 'Licht Avatar',
+        aiCard: 'Luft Elementar',
+        weather: 'Windsturm',
+        playerHero: 'Zauberer',
+        aiHero: 'Drache',
+        tokenDelta: 5,
+        sampleRate: 0.02,
+        targetAiWinRate: 0.58,
+        priorWeight: 4,
+        contextKey: buildContextKey({
+            playerCard: 'Licht Avatar',
+            weather: 'Windsturm',
+            playerHero: 'Zauberer',
+            aiHero: 'Drache',
+            tokenDelta: 5,
+        }),
+        clampedDelta: clampTokenDelta(5),
+    },
+    {
+        playerCard: 'Luft Avatar',
+        aiCard: 'Magie Avatar',
+        weather: 'Windsturm',
+        playerHero: 'Drache',
+        aiHero: 'Drache',
+        tokenDelta: 5,
+        sampleRate: 0.02,
+        targetAiWinRate: 0.6,
+        priorWeight: 4,
+        contextKey: buildContextKey({
+            playerCard: 'Luft Avatar',
+            weather: 'Windsturm',
+            playerHero: 'Drache',
+            aiHero: 'Drache',
+            tokenDelta: 5,
+        }),
+        clampedDelta: clampTokenDelta(5),
+    },
+    {
+        playerCard: 'Licht Avatar',
+        aiCard: 'Erde Avatar',
+        weather: 'Regen',
+        playerHero: 'Drache',
+        aiHero: 'Zauberer',
+        tokenDelta: 5,
+        sampleRate: 0.02,
+        targetAiWinRate: 0.6,
+        priorWeight: 4,
+        contextKey: buildContextKey({
+            playerCard: 'Licht Avatar',
+            weather: 'Regen',
+            playerHero: 'Drache',
+            aiHero: 'Zauberer',
+            tokenDelta: 5,
+        }),
+        clampedDelta: clampTokenDelta(5),
+    },
+];
+
+const FOCUS_CONTEXT_INDEX = WEAK_CONTEXT_FOCUS.reduce<
+    Map<string, FocusContextDetail[]>
+>((map, detail) => {
+    const existing = map.get(detail.contextKey) ?? [];
+    existing.push(detail);
+    map.set(detail.contextKey, existing);
+    return map;
+}, new Map());
 
 type ContextMetadata = {
     bestCardKey: string;
@@ -43,6 +382,8 @@ type ContextMetadata = {
     baselineWinRate: number;
     bestWinRate: number;
     consolidationStage: 'none' | 'provisional' | 'stable';
+    weaknessPenalty: number;
+    preferredResponses?: string[];
 };
 
 function wilsonInterval(wins: number, trials: number, z: number = WILSON_Z) {
@@ -247,6 +588,91 @@ function generateDeck(): Card[] {
 }
 
 
+const simulateFocusedRound = (
+    detail: FocusContextDetail,
+    sampleIndex: number
+): RoundResult => {
+    const playerCard = createCardTemplate(detail.playerCard, `focus-player-${sampleIndex}`);
+    const aiCard = createCardTemplate(detail.aiCard, `focus-ai-${sampleIndex}`);
+
+    let playerTokensBefore = START_TOKENS;
+    let aiTokensBefore = START_TOKENS;
+
+    if (detail.clampedDelta > 0) {
+        playerTokensBefore += detail.clampedDelta;
+    } else if (detail.clampedDelta < 0) {
+        aiTokensBefore += Math.abs(detail.clampedDelta);
+    }
+
+    const history: GameHistoryEntry[] = [];
+    const playerHandSnapshot: Card[] = [];
+    const aiHandSnapshot: Card[] = [];
+
+    const drawProbability = 0.05;
+    const roll = Math.random();
+    let winner: Winner;
+    if (roll < detail.targetAiWinRate) {
+        winner = 'gegner';
+    } else if (roll < detail.targetAiWinRate + drawProbability) {
+        winner = 'unentschieden';
+    } else {
+        winner = 'spieler';
+    }
+
+    let playerTokensAfter = playerTokensBefore;
+    let aiTokensAfter = aiTokensBefore;
+
+    if (winner !== 'unentschieden') {
+        const winnerCard = winner === 'spieler' ? playerCard : aiCard;
+        [playerTokensAfter, aiTokensAfter] = applyElementEffect(
+            winner,
+            winnerCard,
+            playerTokensAfter,
+            aiTokensAfter,
+            history.length
+        );
+
+        const mechanicOutcome = resolveMechanicEffects({
+            winner,
+            playerCard,
+            aiCard,
+            weather: detail.weather,
+            remainingPlayerHand: playerHandSnapshot,
+            remainingAiHand: aiHandSnapshot,
+            basePlayerTokens: playerTokensAfter,
+            baseAiTokens: aiTokensAfter,
+            history,
+        });
+
+        playerTokensAfter = Math.max(0, mechanicOutcome.playerTokens);
+        aiTokensAfter = Math.max(0, mechanicOutcome.aiTokens);
+    }
+
+    return {
+        spieler_karte: detail.playerCard,
+        gegner_karte: detail.aiCard,
+        spieler_token_vorher: playerTokensBefore,
+        gegner_token_vorher: aiTokensBefore,
+        spieler_token: playerTokensAfter,
+        gegner_token: aiTokensAfter,
+        wetter: detail.weather,
+        spieler_held: detail.playerHero,
+        gegner_held: detail.aiHero,
+        gewinner: winner,
+    };
+};
+
+const augmentWithFocusRounds = (numGames: number, data: RoundResult[]): void => {
+    const baseGames = Math.max(1, numGames);
+    WEAK_CONTEXT_FOCUS.forEach((detail, index) => {
+        const samples = Math.max(3, Math.round(baseGames * detail.sampleRate));
+        for (let i = 0; i < samples; i++) {
+            data.push(simulateFocusedRound(detail, index * 1000 + i));
+        }
+    });
+};
+
+
 export function simulateGames(numGames: number): RoundResult[] {
     const allData: RoundResult[] = [];
     const heroNames = Object.keys(HEROES) as HeroName[];
@@ -256,8 +682,8 @@ export function simulateGames(numGames: number): RoundResult[] {
         let playerHand = deck.slice(0, 4);
         let aiHand = deck.slice(4, 8);
         let talon = deck.slice(8);
-        let playerTokens = 5;
-        let aiTokens = 5;
+        let playerTokens = START_TOKENS;
+        let aiTokens = START_TOKENS;
         
         // Random heroes for each simulated game
         const playerHero = heroNames[Math.floor(Math.random() * heroNames.length)];
@@ -336,6 +762,7 @@ export function simulateGames(numGames: number): RoundResult[] {
             if (talon.length > 0 && aiHand.length < 4) aiHand.push(talon.pop()!);
         }
     }
+    augmentWithFocusRounds(numGames, allData);
     return allData;
 }
 
@@ -346,10 +773,26 @@ export function simulateGames(numGames: number): RoundResult[] {
 export function trainModel(simulationData: RoundResult[]): TrainedModel {
     const modelData = new Map<string, Map<string, { wins: number; total: number }>>();
 
+    for (const [contextKey, focusDetails] of FOCUS_CONTEXT_INDEX.entries()) {
+        if (!modelData.has(contextKey)) {
+            modelData.set(contextKey, new Map());
+        }
+        const aiCardMap = modelData.get(contextKey)!;
+        focusDetails.forEach((detail) => {
+            if (!aiCardMap.has(detail.aiCard)) {
+                aiCardMap.set(detail.aiCard, { wins: 0, total: 0 });
+            }
+            const stats = aiCardMap.get(detail.aiCard)!;
+            const priorWins = Math.round(detail.priorWeight * detail.targetAiWinRate);
+            stats.total += detail.priorWeight;
+            stats.wins += priorWins;
+        });
+    }
+
     for (const round of simulationData) {
         // UPDATED: Context-aware key
         const tokenDelta = round.spieler_token_vorher - round.gegner_token_vorher;
-        const clampedDelta = Math.max(-5, Math.min(5, tokenDelta));
+        const clampedDelta = clampTokenDelta(tokenDelta);
         const heroMatchupKey = `${round.spieler_held}vs${round.gegner_held}`;
         const contextKey = `${round.spieler_karte}|${round.wetter}|${heroMatchupKey}|delta:${clampedDelta}`;
         const aiCardKey = round.gegner_karte;
@@ -376,14 +819,6 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
     let contextsWithBestCard = 0;
     let bestContext: TrainingAnalysis['bestContext'] | undefined = undefined;
 
-    const parseCardString = (cardLabel: string): { element: ElementType; ability: ValueType } => {
-        const [element, ...abilityParts] = cardLabel.split(' ');
-        return {
-            element: element as ElementType,
-            ability: abilityParts.join(' ') as ValueType,
-        };
-    };
-
     const contextDetails: ContextInsight[] = [];
     const deltaCoverage = new Map<number, { contexts: number; solid: number; winRateSum: number; baselineSum: number; liftSum: number; observationSum: number }>();
     const heroMatchupMap = new Map<string, { contexts: number; observations: number; winRateSum: number; tokenDeltaSum: number; topContext?: ContextInsight }>();
@@ -405,7 +840,7 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         const weather = weatherString as WeatherType;
         const [playerHero, aiHero] = heroMatchupString.split('vs') as [HeroName, HeroName];
         const tokenDelta = Number(deltaString.replace('delta:', ''));
-        const { element: playerElement } = parseCardString(playerCardLabel);
+        const { element: playerElement } = parseCardLabel(playerCardLabel);
 
         let totalTrials = 0;
         let totalWins = 0;
@@ -440,7 +875,7 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
                 evidenceScore: computeEvidenceScore(interval.lower, interval.upper),
             });
 
-            const { ability: aiAbility } = parseCardString(cardKey);
+            const { ability: aiAbility } = parseCardLabel(cardKey);
             const elementCounters = elementCounterMap.get(playerElement) ?? new Map<string, { wins: number; total: number }>();
             const counterStats = elementCounters.get(cardKey) ?? { wins: 0, total: 0 };
             counterStats.wins += stats.wins;
@@ -522,6 +957,21 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
                 ? 'provisional'
                 : 'none';
 
+        const focusEntries = FOCUS_CONTEXT_INDEX.get(contextKey);
+        let weaknessPenalty = 0;
+        if (focusEntries && focusEntries.length > 0) {
+            weaknessPenalty = 0.1;
+            if (bestCandidate.winRate < 0.5) {
+                weaknessPenalty += 0.05;
+            }
+        } else if (tokenDelta >= 4 && bestCandidate.winRate < 0.55) {
+            weaknessPenalty = Math.min(0.15, (0.55 - bestCandidate.winRate) * 0.6);
+        }
+        if (bestCandidate.winRate < baselineWinRate) {
+            weaknessPenalty += 0.03;
+        }
+        weaknessPenalty = Math.min(0.3, Math.max(0, weaknessPenalty));
+
         contextMetadata.set(contextKey, {
             bestCardKey: bestCandidate.cardKey,
             observations: bestCandidate.total,
@@ -531,6 +981,8 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
             baselineWinRate,
             bestWinRate: bestCandidate.winRate,
             consolidationStage,
+            weaknessPenalty,
+            preferredResponses: focusEntries?.map((entry) => entry.aiCard),
         });
 
         const deltaStats = deltaCoverage.get(tokenDelta) ?? {
@@ -735,7 +1187,7 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
 
     const predict = (playerCard: Card, aiHand: Card[], gameState: any): Card => {
         const tokenDelta = (gameState.playerTokens ?? 0) - (gameState.aiTokens ?? 0);
-        const clampedDelta = Math.max(-5, Math.min(5, tokenDelta));
+        const clampedDelta = clampTokenDelta(tokenDelta);
         const heroMatchupKey = `${gameState.playerHero}vs${gameState.aiHero}`;
         const contextKey = `${playerCard.element} ${playerCard.wert}|${gameState.weather}|${heroMatchupKey}|delta:${clampedDelta}`;
         const possiblePlays = modelData.get(contextKey);
@@ -750,33 +1202,59 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         const defaultLower = Math.max(0, baseline - 0.25);
         const defaultUpper = Math.min(1, baseline + 0.15);
 
+        const weaknessPenalty = metadata?.weaknessPenalty ?? 0;
+        const preferredResponses = metadata?.preferredResponses ?? [];
+
         const candidateSummaries = aiHand.map((card) => {
             const key = `${card.element} ${card.wert}`;
             const stats = possiblePlays.get(key);
             if (!stats || stats.total === 0) {
+                const isPreferred = preferredResponses.includes(key);
+                const baseLower = defaultLower;
+                const adjustedLower = Math.min(
+                    1,
+                    Math.max(0, baseLower - weaknessPenalty + (isPreferred ? 0.08 : 0))
+                );
                 return {
                     card,
                     key,
                     winRate: baseline,
-                    wilsonLower: defaultLower,
-                    wilsonUpper: defaultUpper,
+                    wilsonLower: baseLower,
+                    wilsonUpper: Math.min(1, defaultUpper + (isPreferred ? 0.05 : 0)),
                     intervalWidth: defaultUpper - defaultLower,
                     observations: stats?.total ?? 0,
+                    adjustedLower,
+                    isPreferred,
                 };
             }
             const interval = wilsonInterval(stats.wins, stats.total);
+            const isPreferred = preferredResponses.includes(key);
+            const adjustedLower = Math.min(
+                1,
+                Math.max(0, interval.lower - weaknessPenalty + (isPreferred ? 0.08 : 0))
+            );
             return {
                 card,
                 key,
                 winRate: stats.wins / stats.total,
                 wilsonLower: interval.lower,
-                wilsonUpper: interval.upper,
+                wilsonUpper: Math.min(1, interval.upper + (isPreferred ? 0.05 : 0)),
                 intervalWidth: interval.width,
                 observations: stats.total,
+                adjustedLower,
+                isPreferred,
             };
         });
 
-        const sortedByEvidence = [...candidateSummaries].sort((a, b) => b.wilsonLower - a.wilsonLower);
+        const sortedByEvidence = [...candidateSummaries].sort((a, b) => {
+            if (b.adjustedLower !== a.adjustedLower) {
+                return b.adjustedLower - a.adjustedLower;
+            }
+            if (a.isPreferred !== b.isPreferred) {
+                return (b.isPreferred ? 1 : 0) - (a.isPreferred ? 1 : 0);
+            }
+            return b.wilsonLower - a.wilsonLower;
+        });
         const topCandidate = sortedByEvidence[0];
         if (!topCandidate) {
             const sortedHand = [...aiHand].sort((a, b) => ABILITIES.indexOf(b.wert) - ABILITIES.indexOf(a.wert));
@@ -798,9 +1276,14 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
             temperature += 0.4;
         }
 
-        const maxScore = Math.max(...sortedByEvidence.map((entry) => entry.wilsonLower));
+        if (weaknessPenalty > 0) {
+            temperature += weaknessPenalty * 2.5;
+        }
+
+        const adjustedScores = sortedByEvidence.map((entry) => entry.adjustedLower);
+        const maxScore = adjustedScores.length > 0 ? Math.max(...adjustedScores) : 0;
         const weights = sortedByEvidence.map((entry) =>
-            Math.exp((entry.wilsonLower - maxScore) / Math.max(0.4, temperature))
+            Math.exp((entry.adjustedLower - maxScore) / Math.max(0.4, temperature))
         );
         const weightSum = weights.reduce((sum, value) => sum + value, 0);
         if (weightSum === 0) {
