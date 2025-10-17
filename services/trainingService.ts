@@ -6,6 +6,7 @@ import {
     Winner,
     HeroName,
     TrainingAnalysis,
+    TrainingRunOptions,
     GameHistoryEntry,
     ElementType,
     AbilityMechanicName,
@@ -35,6 +36,7 @@ import {
     resolveMechanicEffects,
 } from './mechanicEngine';
 import { buildShuffledDeck, getRandomCardTemplate } from './cardCatalogService';
+import { computeWilsonStatsGpu } from './gpuAcceleration';
 
 const WILSON_Z = 1.96;
 
@@ -1055,8 +1057,26 @@ export async function simulateGames(
 
 // --- Training Logic (now context-aware) ---
 
+const GPU_WILSON_STRIDE = 5;
+const INITIALIZATION_PROGRESS_SHARE = 0.05;
+const MIN_SIMULATION_PROGRESS_STEPS = 40;
+const MIN_CONTEXT_PROGRESS_STEPS = 30;
+
+const computeYieldInterval = (total: number, desiredSteps: number) =>
+    Math.max(1, Math.floor(Math.max(1, total) / Math.max(1, desiredSteps)));
+
+const yieldDuringTraining = async (iteration: number, interval: number) => {
+    if (interval > 0 && iteration % interval === 0) {
+        await waitFor(0);
+    }
+};
+
 // This builds a model: for each (player card + weather), what AI card has the best win rate?
-export function trainModel(simulationData: RoundResult[]): TrainedModel {
+export async function trainModel(
+    simulationData: RoundResult[],
+    options: TrainingRunOptions = {}
+): Promise<TrainedModel> {
+    const { onProgress, preferGpu = false } = options;
     const modelData = new Map<string, Map<string, { wins: number; total: number }>>();
 
     for (const [contextKey, focusDetails] of FOCUS_CONTEXT_INDEX.entries()) {
@@ -1075,7 +1095,20 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         });
     }
 
-    for (const round of simulationData) {
+    onProgress?.({
+        phase: 'initializing',
+        progress: INITIALIZATION_PROGRESS_SHARE,
+        message: 'Kontextbasierte Priors initialisiert.',
+    });
+
+    const totalRounds = simulationData.length;
+    const safeTotalRounds = Math.max(1, totalRounds);
+    const simulationYieldInterval = computeYieldInterval(totalRounds, MIN_SIMULATION_PROGRESS_STEPS);
+    const aggregationShare = totalRounds > 0 ? 0.45 : 0;
+    const analysisShare = Math.max(0, 1 - INITIALIZATION_PROGRESS_SHARE - aggregationShare);
+
+    for (let i = 0; i < totalRounds; i++) {
+        const round = simulationData[i];
         // UPDATED: Context-aware key
         const tokenDelta = round.spieler_token_vorher - round.gegner_token_vorher;
         const clampedDelta = clampTokenDelta(tokenDelta);
@@ -1097,6 +1130,30 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         if (round.gewinner === 'gegner') {
             stats.wins += 1;
         }
+
+        if ((i + 1) % simulationYieldInterval === 0 || i === totalRounds - 1) {
+            const ratio = (i + 1) / safeTotalRounds;
+            onProgress?.({
+                phase: 'aggregating',
+                progress: INITIALIZATION_PROGRESS_SHARE + aggregationShare * ratio,
+                message: `Verarbeite Simulation ${i + 1} von ${safeTotalRounds}`,
+            });
+            await yieldDuringTraining(i + 1, simulationYieldInterval);
+        }
+    }
+
+    if (totalRounds === 0) {
+        onProgress?.({
+            phase: 'aggregating',
+            progress: INITIALIZATION_PROGRESS_SHARE,
+            message: 'Keine Simulationsdaten – nutze Fokus-Prioren.',
+        });
+    } else {
+        onProgress?.({
+            phase: 'aggregating',
+            progress: INITIALIZATION_PROGRESS_SHARE + aggregationShare,
+            message: 'Simulationen verarbeitet. Starte Kontextanalyse...',
+        });
     }
 
     let contextsWithSolidData = 0;
@@ -1120,8 +1177,15 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
     }>();
     const contextMetadata = new Map<string, ContextMetadata>();
     const entropyAlerts: ContextInsight[] = [];
+    const contextEntries = Array.from(modelData.entries());
+    const contextEntryCount = contextEntries.length;
+    const safeContextTotal = Math.max(1, contextEntryCount);
+    const contextYieldInterval = computeYieldInterval(contextEntryCount, MIN_CONTEXT_PROGRESS_STEPS);
+    let gpuUtilized = false;
+    let gpuAvailableForContexts = preferGpu;
 
-    for (const [contextKey, aiCardMap] of modelData.entries()) {
+    for (let contextIndex = 0; contextIndex < contextEntryCount; contextIndex++) {
+        const [contextKey, aiCardMap] = contextEntries[contextIndex];
         const [playerCardLabel, weatherString, heroMatchupString, deltaString] = contextKey.split('|');
         const weather = weatherString as WeatherType;
         const [playerHero, aiHero] = heroMatchupString.split('vs') as [HeroName, HeroName];
@@ -1142,23 +1206,74 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         }[] = [];
         const mechanicUsage = new Map<AbilityMechanicName, { wins: number; total: number }>();
 
-        for (const [cardKey, stats] of aiCardMap.entries()) {
-            if (stats.total === 0) continue;
+        const statsList: Array<{ key: string; stats: { wins: number; total: number } }> = [];
+        aiCardMap.forEach((stats, cardKey) => {
+            statsList.push({ key: cardKey, stats });
+        });
+
+        const winsArray = new Float32Array(statsList.length);
+        const totalsArray = new Float32Array(statsList.length);
+        for (let idx = 0; idx < statsList.length; idx++) {
+            winsArray[idx] = statsList[idx].stats.wins;
+            totalsArray[idx] = statsList[idx].stats.total;
+        }
+
+        let gpuStats: Float32Array | null = null;
+        if (gpuAvailableForContexts && statsList.length >= 4) {
+            try {
+                gpuStats = await computeWilsonStatsGpu(winsArray, totalsArray);
+                if (gpuStats) {
+                    gpuUtilized = true;
+                } else {
+                    gpuAvailableForContexts = false;
+                }
+            } catch (error) {
+                console.warn('GPU-gestützte Kontextauswertung fehlgeschlagen, wechsle zu CPU.', error);
+                gpuAvailableForContexts = false;
+                gpuStats = null;
+            }
+        }
+
+        for (let idx = 0; idx < statsList.length; idx++) {
+            const { key: cardKey, stats } = statsList[idx];
+            if (stats.total === 0) {
+                continue;
+            }
 
             totalTrials += stats.total;
             totalWins += stats.wins;
 
-            const interval = wilsonInterval(stats.wins, stats.total);
-            const winRate = stats.wins / stats.total;
+            let winRate: number;
+            let wilsonLower: number;
+            let wilsonUpper: number;
+            let intervalWidth: number;
+            let evidenceScoreValue: number;
+
+            if (gpuStats && gpuStats.length >= (idx + 1) * GPU_WILSON_STRIDE) {
+                const baseIndex = idx * GPU_WILSON_STRIDE;
+                winRate = gpuStats[baseIndex];
+                wilsonLower = gpuStats[baseIndex + 1];
+                wilsonUpper = gpuStats[baseIndex + 2];
+                intervalWidth = gpuStats[baseIndex + 3];
+                evidenceScoreValue = gpuStats[baseIndex + 4];
+            } else {
+                const interval = wilsonInterval(stats.wins, stats.total);
+                winRate = stats.wins / stats.total;
+                wilsonLower = interval.lower;
+                wilsonUpper = interval.upper;
+                intervalWidth = interval.width;
+                evidenceScoreValue = computeEvidenceScore(interval.lower, interval.upper);
+            }
+
             candidateSummaries.push({
                 cardKey,
                 wins: stats.wins,
                 total: stats.total,
                 winRate,
-                wilsonLower: interval.lower,
-                wilsonUpper: interval.upper,
-                intervalWidth: interval.width,
-                evidenceScore: computeEvidenceScore(interval.lower, interval.upper),
+                wilsonLower,
+                wilsonUpper,
+                intervalWidth,
+                evidenceScore: evidenceScoreValue,
             });
 
             const { ability: aiAbility } = parseCardLabel(cardKey);
@@ -1333,9 +1448,23 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
             record.weatherCounts.set(weather, (record.weatherCounts.get(weather) ?? 0) + usage.total);
             mechanicStats.set(mechanic, record);
         });
+
+        const ratio = (contextIndex + 1) / safeContextTotal;
+        const progressValue = INITIALIZATION_PROGRESS_SHARE + aggregationShare + analysisShare * ratio;
+        const gpuMessage = preferGpu
+            ? gpuUtilized
+                ? 'Analysiere Kontexte (GPU aktiv)'
+                : 'Analysiere Kontexte (GPU bevorzugt)'
+            : 'Analysiere Kontexte';
+        onProgress?.({
+            phase: 'analyzing',
+            progress: Math.min(0.999, progressValue),
+            message: `${gpuMessage} – ${contextIndex + 1}/${safeContextTotal}`,
+        });
+        await yieldDuringTraining(contextIndex + 1, contextYieldInterval);
     }
 
-    const totalContexts = modelData.size;
+    const totalContexts = contextDetails.length;
     const averageBestWinRate = contextsWithBestCard > 0 ? winRateSum / contextsWithBestCard : 0;
 
     const topContexts = contextDetails
@@ -1586,6 +1715,13 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
 
         return topCandidate.card;
     };
+
+    const finalMessage = preferGpu
+        ? gpuUtilized
+            ? 'Training abgeschlossen. GPU-Beschleunigung aktiv.'
+            : 'Training abgeschlossen. GPU nicht verfügbar – CPU genutzt.'
+        : 'Training abgeschlossen.';
+    onProgress?.({ phase: 'finalizing', progress: 1, message: finalMessage });
 
     return { predict, analysis };
 }

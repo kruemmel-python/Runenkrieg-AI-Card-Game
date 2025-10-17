@@ -127,6 +127,17 @@ export interface ResamplingRecommendation {
   rationale: string;
 }
 
+export interface TrainingProgressUpdate {
+  phase: 'initializing' | 'aggregating' | 'analyzing' | 'finalizing';
+  progress: number;
+  message: string;
+}
+
+export interface TrainingRunOptions {
+  preferGpu?: boolean;
+  onProgress?: (update: TrainingProgressUpdate) => void;
+}
+
 export interface TrainingAnalysis {
   totalContexts: number;
   contextsWithSolidData: number;

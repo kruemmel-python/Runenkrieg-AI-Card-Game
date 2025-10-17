@@ -109,6 +109,8 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
   const [simulationProgress, setSimulationProgress] = useState<number>(0);
   const [simulationStatus, setSimulationStatus] = useState<string>('Bereit für Simulationen.');
   const [simulationStatusTone, setSimulationStatusTone] = useState<SimulationStatusTone>('idle');
+  const [trainingProgress, setTrainingProgress] = useState<number>(0);
+  const [trainingStatus, setTrainingStatus] = useState<string>('Bereit für Training.');
   const [onlyHighTokenDelta, setOnlyHighTokenDelta] = useState<boolean>(false);
   const [focusWeather, setFocusWeather] = useState<'all' | 'regenWind'>('all');
   const [onlyDragonDuels, setOnlyDragonDuels] = useState<boolean>(false);
@@ -119,6 +121,7 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
   const [isChessSimulating, setIsChessSimulating] = useState<boolean>(false);
   const [chessSimulationProgress, setChessSimulationProgress] = useState<number>(0);
   const [isChessTraining, setIsChessTraining] = useState<boolean>(false);
+  const [chessTrainingProgress, setChessTrainingProgress] = useState<number>(0);
   const [chessStatus, setChessStatus] = useState<string>(
     isChessAiTrained() ? 'Schach-KI ist trainiert und aktiv.' : 'Schach-KI nutzt heuristische Heuristiken.'
   );
@@ -147,6 +150,7 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
   const handleChessSimulation = useCallback(async () => {
     setIsChessSimulating(true);
     setChessSimulationProgress(0);
+    setChessTrainingProgress(0);
     setChessStatus('Starte Schach-Simulation...');
     try {
       const results = await simulateChessGames(chessSimulationCount, {}, (completed, total) => {
@@ -165,21 +169,35 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
     }
   }, [chessSimulationCount]);
 
-  const handleChessTraining = useCallback(() => {
+  const handleChessTraining = useCallback(async () => {
     if (chessSimulations.length === 0) {
       setChessStatus('Bitte führe zuerst Schach-Simulationen durch.');
       return;
     }
     setIsChessTraining(true);
+    setChessTrainingProgress(0);
+    setChessStatus('Initialisiere Schach-Training...');
     try {
-      const model = trainChessModel(chessSimulations);
+      const model = await trainChessModel(chessSimulations, {
+        preferGpu: true,
+        onProgress: (update) => {
+          setChessTrainingProgress(Math.min(1, update.progress));
+          setChessStatus(update.message);
+        },
+      });
       setTrainedChessModel(model);
       setChessSummary(model.summary);
       setChessInsights(model.insights.slice(0, 12));
-      setChessStatus('Schach-KI erfolgreich trainiert und aktiviert.');
+      setChessTrainingProgress(1);
+      setChessStatus((prev) =>
+        prev.toLowerCase().includes('schachtraining abgeschlossen')
+          ? `${prev} KI aktiviert.`
+          : 'Schach-KI erfolgreich trainiert und aktiviert.'
+      );
     } catch (error) {
       console.error('Fehler beim Schach-Training:', error);
       setChessStatus('Fehler beim Training der Schach-KI.');
+      setChessTrainingProgress(0);
     } finally {
       setIsChessTraining(false);
     }
@@ -328,20 +346,33 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
     void runSimulation();
   }, [simulationCount]);
 
-  const handleTrain = useCallback(() => {
+  const handleTrain = useCallback(async () => {
     if (simulationData.length === 0) {
-        alert("Bitte zuerst Spiele simulieren, um Trainingsdaten zu erzeugen.");
-        return;
+      alert('Bitte zuerst Spiele simulieren, um Trainingsdaten zu erzeugen.');
+      return;
     }
     setIsTraining(true);
-     // Use timeout to allow UI to update before blocking
-    setTimeout(() => {
-        const model = trainModel(simulationData);
-        setTrainedModel(model);
-        setTrainingAnalysis(model.analysis);
-        setAiStatus('KI wurde mit neuen Daten trainiert und ist aktiv.');
-        setIsTraining(false);
-    }, 50);
+    setTrainingProgress(0);
+    setTrainingStatus('Initialisiere Training...');
+    try {
+      const model = await trainModel(simulationData, {
+        preferGpu: true,
+        onProgress: (update) => {
+          setTrainingProgress(Math.min(1, update.progress));
+          setTrainingStatus(update.message);
+        },
+      });
+      setTrainedModel(model);
+      setTrainingAnalysis(model.analysis);
+      setAiStatus('KI wurde mit neuen Daten trainiert und ist aktiv.');
+      setTrainingProgress(1);
+    } catch (error) {
+      console.error('Fehler beim KI-Training:', error);
+      setTrainingStatus('Fehler beim Training der KI.');
+      setTrainingProgress(0);
+    } finally {
+      setIsTraining(false);
+    }
   }, [simulationData]);
 
   return (
@@ -418,8 +449,27 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors disabled:bg-slate-500 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                     {isTraining && <Spinner />}
-                    {isTraining ? 'Trainiere...' : 'Trainiere KI mit Daten'}
+                    {isTraining
+                        ? `Trainiere... ${Math.round(trainingProgress * 100)}%`
+                        : 'Trainiere KI mit Daten'}
                 </button>
+                {(isTraining || trainingProgress > 0 || trainingStatus !== 'Bereit für Training.') && (
+                  <div className="mt-4">
+                    <div className="flex justify-between text-xs text-slate-400 mb-1">
+                      <span>Fortschritt</span>
+                      <span>{Math.round(trainingProgress * 100)}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-green-500 transition-all duration-200"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, trainingProgress * 100))}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="mt-2 text-slate-300 text-sm text-center">{trainingStatus}</p>
+                  </div>
+                )}
                  {simulationData.length === 0 &&
                     <p className="mt-4 text-yellow-400 text-center text-sm">Warte auf Simulationsdaten...</p>
                 }
@@ -854,7 +904,9 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
                                     : 'bg-purple-600 hover:bg-purple-500 text-white'
                             }`}
                         >
-                            {isChessTraining ? 'Trainiere...' : 'Schach-KI trainieren'}
+                            {isChessTraining
+                                ? `Trainiere... ${Math.round(chessTrainingProgress * 100)}%`
+                                : 'Schach-KI trainieren'}
                         </button>
                     </div>
                     <p className="text-sm text-slate-300">{chessStatus}</p>
@@ -863,6 +915,14 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
                             <div
                                 className="h-full bg-emerald-500 transition-all duration-200"
                                 style={{ width: `${Math.min(100, Math.round(chessSimulationProgress * 100))}%` }}
+                            />
+                        </div>
+                    )}
+                    {(isChessTraining || chessTrainingProgress > 0) && (
+                        <div className="w-full h-2 bg-slate-700 rounded overflow-hidden">
+                            <div
+                                className="h-full bg-purple-500 transition-all duration-200"
+                                style={{ width: `${Math.min(100, Math.max(0, chessTrainingProgress * 100))}%` }}
                             />
                         </div>
                     )}
