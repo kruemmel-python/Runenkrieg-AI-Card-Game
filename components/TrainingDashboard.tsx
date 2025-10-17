@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback } from 'react';
-import { RoundResult, SimulationAnalysis, TrainingAnalysis } from '../types';
+import { RoundResult, SimulationAnalysis, TrainingAnalysis, ContextInsight } from '../types';
 import { simulateGames, trainModel } from '../services/trainingService';
 import { setTrainedModel, isAiTrained } from '../services/aiService';
 import Spinner from './Spinner';
@@ -86,6 +86,9 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
   const [aiStatus, setAiStatus] = useState<string>(isAiTrained() ? 'KI ist trainiert und aktiv.' : 'KI nutzt zufällige Züge.');
   const [simulationAnalysis, setSimulationAnalysis] = useState<SimulationAnalysis | null>(null);
   const [trainingAnalysis, setTrainingAnalysis] = useState<TrainingAnalysis | null>(null);
+  const [onlyHighTokenDelta, setOnlyHighTokenDelta] = useState<boolean>(false);
+  const [focusWeather, setFocusWeather] = useState<'all' | 'regenWind'>('all');
+  const [onlyDragonDuels, setOnlyDragonDuels] = useState<boolean>(false);
 
   const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
   const formatNumber = (value: number) => value.toLocaleString('de-DE');
@@ -94,6 +97,117 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
     if (delta > 0) return 'zugunsten des Spielers';
     if (delta < 0) return 'zugunsten der KI';
     return 'ohne Token-Vorsprung';
+  };
+
+  const formatInterval = (lower: number, upper: number) => `${(lower * 100).toFixed(1)}–${(upper * 100).toFixed(1)}%`;
+  const formatEvidence = (score: number) => `${(score * 100).toFixed(1)}%`;
+
+  const buildBadges = (context: ContextInsight) => {
+    const badges: { label: string; color: string }[] = [];
+    if (context.observations < 10) badges.push({ label: 'fragil', color: 'bg-amber-600' });
+    if (context.wilsonLower < 0.5) badges.push({ label: 'unsicher', color: 'bg-red-700' });
+    if (context.observations >= 100) badges.push({ label: 'stabil', color: 'bg-emerald-700' });
+    return badges;
+  };
+
+  const matchesContextFilters = useCallback(
+    (context: ContextInsight) => {
+      if (onlyHighTokenDelta && context.tokenDelta < 3) {
+        return false;
+      }
+      if (
+        focusWeather === 'regenWind' &&
+        context.weather !== 'Regen' &&
+        context.weather !== 'Windsturm'
+      ) {
+        return false;
+      }
+      if (
+        onlyDragonDuels &&
+        !(context.playerHero.includes('Drache') && context.aiHero.includes('Drache'))
+      ) {
+        return false;
+      }
+      return true;
+    },
+    [focusWeather, onlyDragonDuels, onlyHighTokenDelta]
+  );
+
+  const renderContextList = (
+    title: string,
+    contexts: TrainingAnalysis['topContexts'],
+    emptyMessage?: string
+  ) => {
+    const filteredContexts = (contexts ?? []).filter(matchesContextFilters);
+
+    if (!filteredContexts || filteredContexts.length === 0) {
+      return emptyMessage ? (
+        <div className="mt-6">
+          <h4 className="text-xl font-semibold text-white mb-3">{title}</h4>
+          <p className="text-slate-400 text-sm">{emptyMessage}</p>
+        </div>
+      ) : null;
+    }
+
+    return (
+      <div className="mt-6">
+        <h4 className="text-xl font-semibold text-white mb-3">{title}</h4>
+        <ul className="space-y-3">
+          {filteredContexts.map((context, index) => (
+            <li
+              key={`${title}-${context.playerCard}-${context.aiCard}-${index}`}
+              className="bg-slate-900 p-4 rounded-lg border border-slate-700"
+            >
+              <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">#{index + 1}</p>
+              <p>
+                Spielerkarte <span className="text-purple-300">{context.playerCard}</span> bei Wetter{' '}
+                <span className="text-purple-300">{context.weather}</span> wird am besten mit{' '}
+                <span className="text-purple-300">{context.aiCard}</span> beantwortet.
+              </p>
+              <p className="mt-1 text-sm text-slate-300">
+                Helden-Duell{' '}
+                <span className="text-purple-300">{context.playerHero}</span> vs.{` `}
+                <span className="text-purple-300">{context.aiHero}</span> bei einer Token-Differenz von{' '}
+                <span className="text-purple-300">{formatTokenDelta(context.tokenDelta)}</span>{' '}
+                {describeTokenAdvantage(context.tokenDelta)}.
+              </p>
+              <p className="mt-1 text-sm">
+                <span
+                  className="text-green-400"
+                  title={`Quote: ${formatPercent(context.winRate)} | N=${formatNumber(
+                    context.observations
+                  )} | Wilson: ${formatInterval(context.wilsonLower, context.wilsonUpper)} | Evidenz: ${formatEvidence(
+                    context.evidenceScore
+                  )}`}
+                >
+                  Siegquote: {formatPercent(context.winRate)}
+                </span>{' '}
+                · Beobachtungen: {formatNumber(context.observations)}
+              </p>
+              <p className="mt-1 text-sm text-slate-300">
+                Wilson-95%:{' '}
+                <span className="text-cyan-300">{formatInterval(context.wilsonLower, context.wilsonUpper)}</span> · Evidenzscore:{' '}
+                <span className="text-cyan-300">{formatEvidence(context.evidenceScore)}</span> · Lift vs. Baseline:{' '}
+                <span className={context.lift >= 0 ? 'text-emerald-300' : 'text-red-400'}>
+                  {context.lift >= 0 ? '+' : ''}
+                  {formatPercent(context.lift)}
+                </span>
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {buildBadges(context).map((badge) => (
+                  <span
+                    key={`${context.playerCard}-${badge.label}`}
+                    className={`uppercase text-[10px] tracking-wide px-2 py-1 rounded-full text-white ${badge.color}`}
+                  >
+                    {badge.label}
+                  </span>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
   };
   
   const handleSimulate = useCallback(() => {
@@ -229,7 +343,7 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
         {trainingAnalysis && (
             <div className="mt-8 bg-slate-800 p-6 rounded-lg">
                 <h3 className="text-2xl font-bold mb-4 text-green-300">Trainingsanalyse</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-slate-300">
                     <div>
                         <span className="font-semibold text-white">Kontexte insgesamt:</span> {formatNumber(trainingAnalysis.totalContexts)}
                     </div>
@@ -242,9 +356,49 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
                     <div>
                         <span className="font-semibold text-white">Ø beste Siegquote:</span> {formatPercent(trainingAnalysis.averageBestWinRate)}
                     </div>
+                    <div>
+                        <span className="font-semibold text-white">Mechaniken getrackt:</span> {formatNumber(trainingAnalysis.mechanicEffectiveness.length)}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Helden-Matchups analysiert:</span> {formatNumber(trainingAnalysis.heroMatchupInsights.length)}
+                    </div>
                 </div>
+
+                <div className="mt-4 bg-slate-900 border border-slate-700 rounded-lg p-4">
+                    <h4 className="text-lg font-semibold text-white mb-3">Filter für Kontextlisten</h4>
+                    <div className="flex flex-wrap gap-3">
+                        <button
+                            className={`px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
+                                onlyHighTokenDelta ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-200'
+                            }`}
+                            onClick={() => setOnlyHighTokenDelta((prev) => !prev)}
+                            aria-pressed={onlyHighTokenDelta}
+                        >
+                            +ΔToken ≥ +3
+                        </button>
+                        <button
+                            className={`px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
+                                focusWeather === 'regenWind' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-200'
+                            }`}
+                            onClick={() => setFocusWeather((prev) => (prev === 'regenWind' ? 'all' : 'regenWind'))}
+                            aria-pressed={focusWeather === 'regenWind'}
+                        >
+                            Regen & Windsturm
+                        </button>
+                        <button
+                            className={`px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
+                                onlyDragonDuels ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-200'
+                            }`}
+                            onClick={() => setOnlyDragonDuels((prev) => !prev)}
+                            aria-pressed={onlyDragonDuels}
+                        >
+                            Drache vs. Drache
+                        </button>
+                    </div>
+                </div>
+
                 {trainingAnalysis.bestContext && (
-                    <div className="mt-4 p-4 bg-slate-900 rounded-lg text-slate-200">
+                    <div className="mt-4 p-4 bg-slate-900 rounded-lg text-slate-200 border border-slate-700">
                         <p className="font-semibold text-white mb-2">Stärkstes Szenario</p>
                         <p>
                             Spielerkarte <span className="text-purple-300">{trainingAnalysis.bestContext.playerCard}</span> bei Wetter{' '}
@@ -252,17 +406,266 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
                             <span className="text-purple-300">{trainingAnalysis.bestContext.aiCard}</span> beantwortet.
                         </p>
                         <p className="mt-2">
-                            Helden-Duell:{' '}
-                            <span className="text-purple-300">{trainingAnalysis.bestContext.playerHero}</span> vs.{' '}
-                            <span className="text-purple-300">{trainingAnalysis.bestContext.aiHero}</span>
-                            {' '}bei einer Token-Differenz von{' '}
+                            Helden-Duell{' '}
+                            <span className="text-purple-300">{trainingAnalysis.bestContext.playerHero}</span> vs.{` `}
+                            <span className="text-purple-300">{trainingAnalysis.bestContext.aiHero}</span> bei einer Token-Differenz von{' '}
                             <span className="text-purple-300">{formatTokenDelta(trainingAnalysis.bestContext.tokenDelta)}</span>{' '}
                             {describeTokenAdvantage(trainingAnalysis.bestContext.tokenDelta)}.
                         </p>
                         <p>
-                            Siegquote: <span className="text-green-400">{formatPercent(trainingAnalysis.bestContext.winRate)}</span> auf Grundlage von{' '}
-                            {formatNumber(trainingAnalysis.bestContext.observations)} Beobachtungen.
+                            <span
+                                className="text-green-400"
+                                title={`Quote: ${formatPercent(trainingAnalysis.bestContext.winRate)} | N=${formatNumber(
+                                    trainingAnalysis.bestContext.observations
+                                )} | Wilson: ${formatInterval(
+                                    trainingAnalysis.bestContext.wilsonLower,
+                                    trainingAnalysis.bestContext.wilsonUpper
+                                )} | Evidenz: ${formatEvidence(trainingAnalysis.bestContext.evidenceScore)}`}
+                            >
+                                Siegquote: {formatPercent(trainingAnalysis.bestContext.winRate)}
+                            </span>{' '}
+                            auf Grundlage von {formatNumber(trainingAnalysis.bestContext.observations)} Beobachtungen.
                         </p>
+                        <p className="mt-1">
+                            Wilson-95%:{' '}
+                            <span className="text-cyan-300">
+                                {formatInterval(
+                                    trainingAnalysis.bestContext.wilsonLower,
+                                    trainingAnalysis.bestContext.wilsonUpper
+                                )}
+                            </span>{' '}
+                            · Evidenzscore:{' '}
+                            <span className="text-cyan-300">
+                                {formatEvidence(trainingAnalysis.bestContext.evidenceScore)}
+                            </span>{' '}
+                            · Lift vs. Baseline:{' '}
+                            <span
+                                className={
+                                    trainingAnalysis.bestContext.lift >= 0 ? 'text-emerald-300' : 'text-red-400'
+                                }
+                            >
+                                {trainingAnalysis.bestContext.lift >= 0 ? '+' : ''}
+                                {formatPercent(trainingAnalysis.bestContext.lift)}
+                            </span>
+                        </p>
+                        <div className="mt-2 flex gap-2">
+                            {buildBadges(trainingAnalysis.bestContext).map((badge) => (
+                                <span
+                                    key={`best-${badge.label}`}
+                                    className={`uppercase text-[10px] tracking-wide px-2 py-1 rounded-full text-white ${badge.color}`}
+                                >
+                                    {badge.label}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {renderContextList('Top Sieg-Szenarien', trainingAnalysis.topContexts)}
+                {renderContextList(
+                    'Problematische Szenarien',
+                    trainingAnalysis.strugglingContexts,
+                    'Noch keine Szenarien mit ausreichend Daten, die als Schwachstellen gelten.'
+                )}
+                {renderContextList(
+                    'Datenlücken (unter 5 Beobachtungen)',
+                    trainingAnalysis.dataGaps,
+                    'Alle aktuell gelernten Kontexte besitzen mindestens fünf Beobachtungen.'
+                )}
+                {renderContextList(
+                    'Entropie-Alerts (H < 0.3)',
+                    trainingAnalysis.decisionEntropyAlerts,
+                    'Alle Kontexte besitzen ausreichende Entscheidungsvielfalt.'
+                )}
+
+                {trainingAnalysis.resamplingPlan.length > 0 && (
+                    <div className="mt-6">
+                        <h4 className="text-xl font-semibold text-white mb-3">Simulation-Planner Empfehlungen</h4>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-left text-sm">
+                                <thead className="uppercase text-xs text-slate-400">
+                                    <tr>
+                                        <th className="py-2 pr-4">Priorität</th>
+                                        <th className="py-2 pr-4">Welle</th>
+                                        <th className="py-2 pr-4">Kontext</th>
+                                        <th className="py-2 pr-4">Status</th>
+                                        <th className="py-2 pr-4">Ziel</th>
+                                        <th className="py-2 pr-4">Begründung</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {trainingAnalysis.resamplingPlan.map((entry, index) => (
+                                        <tr key={`${entry.context.playerCard}-${entry.context.aiCard}-${index}`} className="border-t border-slate-700 text-slate-300">
+                                            <td className="py-2 pr-4 font-semibold text-white">{entry.priority}</td>
+                                            <td className="py-2 pr-4">Welle {entry.wave}</td>
+                                            <td className="py-2 pr-4">
+                                                <div className="text-sm">
+                                                    <p>
+                                                        <span className="text-purple-300">{entry.context.playerCard}</span> →{' '}
+                                                        <span className="text-purple-300">{entry.context.aiCard}</span>
+                                                    </p>
+                                                    <p className="text-xs text-slate-400">
+                                                        Wetter {entry.context.weather} · ΔToken {formatTokenDelta(entry.context.tokenDelta)}
+                                                    </p>
+                                                </div>
+                                            </td>
+                                            <td className="py-2 pr-4">
+                                                N={formatNumber(entry.currentObservations)} · Wilson:{' '}
+                                                {formatInterval(entry.context.wilsonLower, entry.context.wilsonUpper)}
+                                            </td>
+                                            <td className="py-2 pr-4">{formatNumber(entry.targetObservations)}</td>
+                                            <td className="py-2 pr-4 text-xs text-slate-300">{entry.rationale}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {trainingAnalysis.coverageByTokenDelta.length > 0 && (
+                    <div className="mt-6">
+                        <h4 className="text-xl font-semibold text-white mb-3">Token-Delta Abdeckung</h4>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-left text-sm">
+                                <thead className="uppercase text-xs text-slate-400">
+                                    <tr>
+                                        <th className="py-2 pr-4">Delta</th>
+                                        <th className="py-2 pr-4">Kontexte</th>
+                                        <th className="py-2 pr-4">Solide Daten</th>
+                                        <th className="py-2 pr-4">Ø Winrate</th>
+                                        <th className="py-2 pr-4">Ø Baseline</th>
+                                        <th className="py-2 pr-4">Ø Lift</th>
+                                        <th className="py-2 pr-4">Ø Beobachtungen</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {trainingAnalysis.coverageByTokenDelta.map((entry) => (
+                                        <tr key={entry.tokenDelta} className="border-t border-slate-700 text-slate-300">
+                                            <td className="py-2 pr-4">{formatTokenDelta(entry.tokenDelta)}</td>
+                                            <td className="py-2 pr-4">{formatNumber(entry.contextCount)}</td>
+                                            <td className="py-2 pr-4">{formatNumber(entry.solidDataContexts)}</td>
+                                            <td
+                                                className="py-2 pr-4"
+                                                title={`Konter: ${formatPercent(entry.averageWinRate)} | Baseline: ${formatPercent(
+                                                    entry.averageBaseline
+                                                )} | Lift: ${formatPercent(entry.averageLift)}`}
+                                            >
+                                                {formatPercent(entry.averageWinRate)}
+                                            </td>
+                                            <td className="py-2 pr-4">{formatPercent(entry.averageBaseline)}</td>
+                                            <td className="py-2 pr-4">
+                                                <span
+                                                    className={entry.averageLift >= 0 ? 'text-emerald-300' : 'text-red-400'}
+                                                >
+                                                    {entry.averageLift >= 0 ? '+' : ''}
+                                                    {formatPercent(entry.averageLift)}
+                                                </span>
+                                            </td>
+                                            <td className="py-2 pr-4">{entry.averageObservations.toFixed(1)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {trainingAnalysis.heroMatchupInsights.length > 0 && (
+                    <div className="mt-6">
+                        <h4 className="text-xl font-semibold text-white mb-3">Helden-Matchup-Trends</h4>
+                        <ul className="space-y-3">
+                            {trainingAnalysis.heroMatchupInsights.map((insight, index) => (
+                                <li key={`${insight.playerHero}-${insight.aiHero}-${index}`} className="bg-slate-900 p-4 rounded-lg border border-slate-700">
+                                    <p className="font-semibold text-white">
+                                        {insight.playerHero} vs. {insight.aiHero}
+                                    </p>
+                                    <p className="text-sm text-slate-300">
+                                        Kontexte: {formatNumber(insight.contexts)} · Beobachtungen: {formatNumber(insight.observations)} · Ø ΔToken:{' '}
+                                        <span className="text-cyan-300">{insight.averageTokenDelta.toFixed(1)}</span> · Ø Konter-Winrate:{' '}
+                                        <span
+                                            className="text-green-400"
+                                            title={`Quote: ${formatPercent(insight.averageBestWinRate)} | Ø ΔToken: ${insight.averageTokenDelta.toFixed(1)}`}
+                                        >
+                                            {formatPercent(insight.averageBestWinRate)}
+                                        </span>
+                                    </p>
+                                    {insight.topCounter && (
+                                        <p className="text-sm mt-1 text-slate-300">
+                                            Beste Antwort:{' '}
+                                            <span className="text-purple-300">{insight.topCounter.aiCard}</span> gegen{' '}
+                                            <span className="text-purple-300">{insight.topCounter.playerCard}</span> bei{' '}
+                                            <span className="text-purple-300">{insight.topCounter.weather}</span>.
+                                        </p>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                {trainingAnalysis.elementCounterInsights.length > 0 && (
+                    <div className="mt-6">
+                        <h4 className="text-xl font-semibold text-white mb-3">Elementare Konter</h4>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {trainingAnalysis.elementCounterInsights.map((entry) => (
+                                <div key={entry.playerElement} className="bg-slate-900 p-4 rounded-lg border border-slate-700">
+                                    <p className="font-semibold text-white mb-2">Gegen {entry.playerElement}</p>
+                                    <ul className="space-y-2 text-sm text-slate-300">
+                                        {entry.counters.map((counter) => (
+                                            <li key={`${entry.playerElement}-${counter.aiCard}`}>
+                                                <span className="text-purple-300">{counter.aiCard}</span> · Siegquote{' '}
+                                                <span className="text-green-400">{formatPercent(counter.winRate)}</span> ({formatNumber(counter.observations)} Beobachtungen)
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {trainingAnalysis.mechanicEffectiveness.length > 0 && (
+                    <div className="mt-6">
+                        <h4 className="text-xl font-semibold text-white mb-3">Mechanik-Wirksamkeit</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {trainingAnalysis.mechanicEffectiveness.map((entry) => (
+                                <div key={entry.mechanic} className="bg-slate-900 p-4 rounded-lg border border-slate-700">
+                                    <p className="font-semibold text-white">{entry.mechanic}</p>
+                                    <p
+                                        className="text-sm text-slate-300"
+                                        title={`Quote: ${formatPercent(entry.winRate)} | Normierter Lift: ${formatPercent(entry.normalizedLift)} | Beobachtungen: ${formatNumber(entry.observations)}`}
+                                    >
+                                        Siegquote:{' '}
+                                        <span className="text-green-400">{formatPercent(entry.winRate)}</span>
+                                    </p>
+                                    <p className="text-sm text-slate-300">
+                                        Normierte Wirksamkeit:{' '}
+                                        <span className={entry.normalizedLift >= 0 ? 'text-emerald-300' : 'text-red-400'}>
+                                            {entry.normalizedLift >= 0 ? '+' : ''}
+                                            {formatPercent(entry.normalizedLift)}
+                                        </span>
+                                    </p>
+                                    <p className="text-sm text-slate-300">
+                                        Beobachtungen: {formatNumber(entry.observations)} · Ø ΔToken:{' '}
+                                        <span className="text-cyan-300">{entry.averageTokenDelta.toFixed(1)}</span> · Kontexte:{' '}
+                                        {formatNumber(entry.contexts)}
+                                    </p>
+                                    {entry.weatherDistribution.length > 0 && (
+                                        <p className="text-xs text-slate-400 mt-2">
+                                            Wetter-Verteilung:{' '}
+                                            {entry.weatherDistribution
+                                                .slice(0, 3)
+                                                .map(
+                                                    (weather) =>
+                                                        `${weather.weather} ${formatPercent(weather.share)}`
+                                                )
+                                                .join(' · ')}
+                                        </p>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>

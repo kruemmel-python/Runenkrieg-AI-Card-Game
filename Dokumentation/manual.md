@@ -58,7 +58,7 @@ Diese Ansicht ist für das Management und Training der KI vorgesehen. Sie ist in
     *   **"Trainiere KI mit Daten"-Button:** Startet den Trainingsprozess basierend auf den gesammelten Simulationsdaten.
     *   **Statusmeldung:** Zeigt den Fortschritt des Trainings an.
 *   **Simulationsanalyse:** Zeigt detaillierte Statistiken der durchgeführten Simulationen an (Siegquoten, häufigste Karten, Wetter etc.).
-*   **Trainingsanalyse:** Zeigt Ergebnisse des KI-Trainings an, einschließlich der Abdeckung von Spielkontexten und dem "stärksten Szenario", das die KI gelernt hat.
+*   **Trainingsanalyse:** Zeigt umfassende Ergebnisse des KI-Trainings inklusive Wilson-Intervallen, Evidenzscore, Filteroptionen, Simulation-Planner, Helden-Matchups, Elementkonter und die normierte Wirksamkeit der einzelnen Mechaniken.
 *   **"Zurück zum Spiel"-Button:** Wechselt zurück zur Spielbrett-Ansicht.
 
 ## 3. Das Spiel spielen: Schritt-für-Schritt-Anleitung
@@ -116,15 +116,22 @@ Das KI-Trainingszentrum ermöglicht es Ihnen, die künstliche Intelligenz des Ge
 2.  **Trainingsprozess:** Die KI analysiert nun die gesammelten Spieldaten, um Muster zu erkennen und eine Strategie zu entwickeln. Sie lernt, welche Karten in welchen Situationen die besten Antworten sind. Dieser Prozess ist vom menschlichen Gehirn inspiriert und verwendet einen effizienten, biologisch inspirierten Ansatz namens **Sparse Dictionary Learning**.
 3.  **Trainingsanalyse:** Nach Abschluss des Trainings wird eine "Trainingsanalyse" angezeigt. Diese zeigt Ihnen:
     *   **Kontexte insgesamt:** Die Anzahl der verschiedenen Spielsituationen, die die KI gelernt hat.
-    *   **Gut abgedeckte Kontexte:** Wie viele dieser Situationen mit ausreichend Daten trainiert wurden.
-    *   **Kontexte mit wenig Daten:** Situationen, für die mehr Simulationen hilfreich wären.
-    *   **Ø beste Siegquote:** Die durchschnittliche Siegquote, die die KI in den gelernten Kontexten erzielen kann.
-    *   **Stärkstes Szenario:** Ein Beispiel für eine Spielsituation, in der die KI eine besonders hohe Siegquote gelernt hat, und welche Karte sie dort am besten einsetzt.
+    *   **Gut abgedeckte Kontexte:** Wie viele dieser Situationen mit mindestens 50 Beobachtungen abgesichert sind.
+    *   **Kontexte mit wenig Daten:** Situationen, in denen die Wilson-Untergrenze unter 0,6 liegt oder weniger als 25 Beobachtungen vorliegen.
+    *   **Ø beste Siegquote & Evidenz:** Durchschnittliche Siegquote der Top-Konter inklusive Wilson-95%-Intervallen, Evidenzscore und Lift gegenüber der Baseline.
+    *   **Stärkstes Szenario:** Ein Beispiel für eine Spielsituation inklusive Wilson-Bandbreite, Evidenzscore, Lift und Badges ("fragil", "unsicher", "stabil").
+    *   **Top Sieg-Szenarien & Problemfälle:** Nach Wilson-Untergrenze sortierte Listen mit Tooltips zu Quote, N, Intervall und Evidenz sowie schnellem Filter für Token-Vorsprung, Regen/Windsturm oder Drache-gegen-Drache-Duelle.
+    *   **Datenlücken & Entropie-Alerts:** Kontexte mit extrem wenig Daten sowie Situationen, in denen die Entscheidungsentropie unter 0,3 fällt.
+    *   **Simulation-Planner:** Eine priorisierte Empfehlungsliste (Welle 1: 25, Welle 2: 50, Welle 3: 100 Beobachtungen), die unsichere oder schwache Kontexte automatisch nachzieht.
+    *   **Token-Delta-Abdeckung:** Enthält nun Baseline-Werte, durchschnittlichen Lift und Ø Beobachtungen pro Delta.
+    *   **Helden-Matchup-Trends:** Welche Heldenpaarungen besonders viele Daten besitzen, inklusive durchschnittlicher Token-Differenz und Top-Konter.
+    *   **Elementare Konter:** Gegenüberstellung, welche Karten besonders gut gegen bestimmte Spieler-Elemente funktionieren.
+    *   **Mechanik-Wirksamkeit:** Siegquote, normierte Wirksamkeit (Lift), durchschnittliches Token-Delta und Wetterverteilung pro Mechanik.
 4.  **KI-Status aktualisiert:** Der "Aktueller KI-Status" wird auf "KI wurde mit neuen Daten trainiert und ist aktiv." aktualisiert. Die KI wird nun ihre neu erlernte Strategie in zukünftigen Spielen anwenden.
 
-### 4.3 Zurück zum Spiel
+### 4.3 Evidenzbasiertes KI-Verhalten
 
-Klicken Sie auf den Button **"Zurück zum Spiel"**, um zum Spielbrett zurückzukehren und gegen die nun trainierte KI anzutreten.
+Auch ohne Training achtet die KI nun auf Wilson-Evidenz: Konter werden nur konsolidiert, wenn mindestens 25 Beobachtungen und eine Untergrenze ≥ 0,6 vorliegen. In fragilen Kontexten erhöht sie die Softmax-Temperatur oder mischt mit kleiner Wahrscheinlichkeit den zweitbesten Zug, sobald die Entscheidungsentropie unter 0,3 fällt. Trainierte Daten speisen zusätzlich den Simulation-Planner. Über den Button **"Zurück zum Spiel"** gelangen Sie zurück auf das Brett und erleben die aktualisierten Strategien sofort.
 
 ## 5. Gemini-Integration: Die Sage von Runenkrieg
 
@@ -166,4 +173,13 @@ Das Runenkrieg-Spiel bietet die Möglichkeit, nach jeder Partie eine einzigartig
 *   **Ø Token nach Runden:** Der durchschnittliche Token-Stand des Spielers/der KI nach jeder Runde in den Simulationen.
 *   **Kontexte:** Bezieht sich auf spezifische Spielsituationen (Kombination aus gespielter Spielerkarte, Wetter, Helden und Token-Differenz), für die die KI gelernt hat, wie sie am besten reagiert.
 *   **Stärkstes Szenario:** Zeigt eine spezifische Spielsituation, in der die KI die höchste Siegwahrscheinlichkeit gelernt hat, wenn sie eine bestimmte Karte spielt.
+*   **Top/Problem-Szenarien:** Listen mit den zuverlässigsten Kontern sowie den Kontexten, in denen die KI noch schwache Ergebnisse erzielt.
+*   **Datenlücken:** Kontexte mit sehr wenigen Beobachtungen – hier lohnt sich weiteres Training.
+*   **Wilson-Intervall & Evidenzscore:** Tooltipps neben jeder Quote liefern Intervallgrenzen, Evidenzscore sowie die Stichprobengröße.
+*   **Simulation-Planner:** Priorisierte Empfehlungen, welche Kontexte gezielt auf 25/50/100 Beobachtungen aufgefüllt werden sollten.
+*   **Entropie-Alerts:** Markiert Situationen mit zu geringer Entscheidungsvielfalt (H < 0,3).
+*   **Token-Delta-Abdeckung:** Veranschaulicht, ob die KI mehr Daten bei Vor- oder Nachteilen gesammelt hat, inklusive Baseline, Lift und Ø Beobachtungen.
+*   **Helden-Matchup-Trends:** Durchschnittliche Konterqualität je Heldenpaarung inklusive bestbewerteter Antwort.
+*   **Elementare Konter:** Welche Karten (und damit Elemente) die höchsten Siegquoten gegen bestimmte Spieler-Elemente aufweisen.
+*   **Mechanik-Wirksamkeit:** Zeigt, welche Fähigkeitmechaniken aktuell die besten Ergebnisse liefern, inklusive normiertem Lift, Ø Token-Delta und Wetterverteilung.
 
