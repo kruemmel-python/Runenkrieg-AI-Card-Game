@@ -1067,8 +1067,33 @@ export async function trainModel(
     simulationData: RoundResult[],
     options: TrainingRunOptions = {}
 ): Promise<TrainedModel> {
-    const { onProgress, preferGpu = false } = options;
+    const { onProgress, preferGpu = false, baseModel } = options;
     const modelData = new Map<string, Map<string, { wins: number; total: number }>>();
+    const contextMetadata = new Map<string, ContextMetadata>();
+    const hasBaseModel = Boolean(baseModel);
+
+    if (baseModel) {
+        try {
+            const { modelData: existingData, metadataMap } = inflateSerializedRunenkriegModel(baseModel);
+            existingData.forEach((aiMap, contextKey) => {
+                const clonedMap = new Map<string, { wins: number; total: number }>();
+                aiMap.forEach((stats, cardKey) => {
+                    clonedMap.set(cardKey, { wins: stats.wins, total: stats.total });
+                });
+                modelData.set(contextKey, clonedMap);
+            });
+            metadataMap.forEach((metadata, contextKey) => {
+                contextMetadata.set(contextKey, {
+                    ...metadata,
+                    preferredResponses: metadata.preferredResponses
+                        ? [...metadata.preferredResponses]
+                        : undefined,
+                });
+            });
+        } catch (error) {
+            console.warn('Fortführung des vorhandenen Runenkrieg-Modells fehlgeschlagen:', error);
+        }
+    }
 
     for (const [contextKey, focusDetails] of FOCUS_CONTEXT_INDEX.entries()) {
         if (!modelData.has(contextKey)) {
@@ -1076,13 +1101,18 @@ export async function trainModel(
         }
         const aiCardMap = modelData.get(contextKey)!;
         focusDetails.forEach((detail) => {
-            if (!aiCardMap.has(detail.aiCard)) {
-                aiCardMap.set(detail.aiCard, { wins: 0, total: 0 });
+            let stats = aiCardMap.get(detail.aiCard);
+            let isNewEntry = false;
+            if (!stats) {
+                stats = { wins: 0, total: 0 };
+                aiCardMap.set(detail.aiCard, stats);
+                isNewEntry = true;
             }
-            const stats = aiCardMap.get(detail.aiCard)!;
-            const priorWins = Math.round(detail.priorWeight * detail.targetAiWinRate);
-            stats.total += detail.priorWeight;
-            stats.wins += priorWins;
+            if (!hasBaseModel || isNewEntry) {
+                const priorWins = Math.round(detail.priorWeight * detail.targetAiWinRate);
+                stats.total += detail.priorWeight;
+                stats.wins += priorWins;
+            }
         });
     }
 
@@ -1166,7 +1196,6 @@ export async function trainModel(
         totalWithTrials: number;
         weatherCounts: Map<WeatherType, number>;
     }>();
-    const contextMetadata = new Map<string, ContextMetadata>();
     const entropyAlerts: ContextInsight[] = [];
     const contextEntries = Array.from(modelData.entries());
     const contextEntryCount = contextEntries.length;
@@ -1605,6 +1634,37 @@ export async function trainModel(
 
 const RUNENKRIEG_MODEL_VERSION = 1;
 
+function inflateSerializedRunenkriegModel(
+    serialized: SerializedRunenkriegModel
+): {
+    modelData: Map<string, Map<string, { wins: number; total: number }>>;
+    metadataMap: Map<string, ContextMetadata>;
+} {
+    const modelData = new Map<string, Map<string, { wins: number; total: number }>>();
+    const metadataMap = new Map<string, ContextMetadata>();
+
+    const entries = Object.entries(serialized.contexts ?? {});
+    for (const [contextKey, contextValue] of entries) {
+        const aiMap = new Map<string, { wins: number; total: number }>();
+        const cardEntries = Object.entries(contextValue?.aiCards ?? {});
+        for (const [cardKey, stats] of cardEntries) {
+            aiMap.set(cardKey, { wins: stats.wins, total: stats.total });
+        }
+        modelData.set(contextKey, aiMap);
+
+        if (contextValue?.metadata) {
+            metadataMap.set(contextKey, {
+                ...contextValue.metadata,
+                preferredResponses: contextValue.metadata.preferredResponses
+                    ? [...contextValue.metadata.preferredResponses]
+                    : undefined,
+            });
+        }
+    }
+
+    return { modelData, metadataMap };
+}
+
 function buildRunenkriegModel(
     modelData: Map<string, Map<string, { wins: number; total: number }>>,
     contextMetadata: Map<string, ContextMetadata>,
@@ -1771,27 +1831,7 @@ export function hydrateTrainedModel(serialized: SerializedRunenkriegModel): Trai
         );
     }
 
-    const modelData = new Map<string, Map<string, { wins: number; total: number }>>();
-    const metadataMap = new Map<string, ContextMetadata>();
-
-    const entries = Object.entries(serialized.contexts ?? {});
-    for (const [contextKey, contextValue] of entries) {
-        const aiMap = new Map<string, { wins: number; total: number }>();
-        const cardEntries = Object.entries(contextValue?.aiCards ?? {});
-        for (const [cardKey, stats] of cardEntries) {
-            aiMap.set(cardKey, { wins: stats.wins, total: stats.total });
-        }
-        modelData.set(contextKey, aiMap);
-
-        if (contextValue?.metadata) {
-            metadataMap.set(contextKey, {
-                ...contextValue.metadata,
-                preferredResponses: contextValue.metadata.preferredResponses
-                    ? [...contextValue.metadata.preferredResponses]
-                    : undefined,
-            });
-        }
-    }
+    const { modelData, metadataMap } = inflateSerializedRunenkriegModel(serialized);
 
     return buildRunenkriegModel(modelData, metadataMap, serialized.analysis);
 }

@@ -136,6 +136,7 @@ export interface TrainingProgressUpdate {
 export interface TrainingRunOptions {
   preferGpu?: boolean;
   onProgress?: (update: TrainingProgressUpdate) => void;
+  baseModel?: SerializedRunenkriegModel;
 }
 
 export interface TrainingAnalysis {

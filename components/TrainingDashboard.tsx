@@ -395,8 +395,10 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
     setTrainingProgress(0);
     setTrainingStatus('Initialisiere Training...');
     try {
+      const currentModel = getTrainedModel();
       const model = await trainModel(simulationData, {
         preferGpu: true,
+        baseModel: currentModel ? currentModel.serialize() : undefined,
         onProgress: (update) => {
           setTrainingProgress(Math.min(1, update.progress));
           setTrainingStatus(update.message);
