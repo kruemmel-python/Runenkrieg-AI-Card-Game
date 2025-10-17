@@ -38,6 +38,7 @@ import {
 const WILSON_Z = 1.96;
 
 const clampTokenDelta = (delta: number) => Math.max(-5, Math.min(5, delta));
+const MAX_ROUNDS_PER_GAME = 200;
 
 const parseCardLabel = (
     cardLabel: string
@@ -69,6 +70,7 @@ const createCardTemplate = (label: string, idSuffix: string): Card => {
 const abilityIndex = (value: ValueType) => ABILITIES.indexOf(value);
 
 let fusionIdCounter = 0;
+let generatedCardCounter = 0;
 
 const determineFusionElement = (first: Card, second: Card): ElementType => {
     const synergy = ELEMENT_SYNERGIES.find(
@@ -112,12 +114,25 @@ const createFusionCard = (primary: Card, secondary: Card): Card => {
     };
 };
 
-const ensureHandSize = (hand: Card[], talon: Card[]): void => {
+const generateReplacementCard = (ownerLabel: 'spieler' | 'gegner'): Card => {
+    const element = ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)];
+    const ability = ABILITIES[Math.floor(Math.random() * ABILITIES.length)];
+    return createCardTemplate(
+        `${element} ${ability}`,
+        `${ownerLabel}-generated-${generatedCardCounter++}`
+    );
+};
+
+const ensureHandSize = (
+    hand: Card[],
+    talon: Card[],
+    ownerLabel: 'spieler' | 'gegner'
+): void => {
     while (hand.length < HAND_SIZE) {
         if (talon.length > 0) {
             hand.push(talon.pop()!);
         } else {
-            break;
+            hand.push(generateReplacementCard(ownerLabel));
         }
     }
 };
@@ -850,6 +865,7 @@ export function simulateGames(numGames: number): RoundResult[] {
         let talon = deck.slice(8);
         let playerTokens = START_TOKENS;
         let aiTokens = START_TOKENS;
+        let roundsPlayed = 0;
         
         // Random heroes for each simulated game
         const playerHero = heroNames[Math.floor(Math.random() * heroNames.length)];
@@ -857,10 +873,16 @@ export function simulateGames(numGames: number): RoundResult[] {
 
         const history: GameHistoryEntry[] = [];
 
-        ensureHandSize(playerHand, talon);
-        ensureHandSize(aiHand, talon);
+        ensureHandSize(playerHand, talon, 'spieler');
+        ensureHandSize(aiHand, talon, 'gegner');
 
-        while (playerTokens > 0 && aiTokens > 0 && playerHand.length > 0 && aiHand.length > 0) {
+        while (
+            playerTokens > 0 &&
+            aiTokens > 0 &&
+            playerHand.length > 0 &&
+            aiHand.length > 0 &&
+            roundsPlayed < MAX_ROUNDS_PER_GAME
+        ) {
             const weather = Object.keys(WEATHER_EFFECTS)[
                 Math.floor(Math.random() * Object.keys(WEATHER_EFFECTS).length)
             ] as WeatherType;
@@ -870,7 +892,7 @@ export function simulateGames(numGames: number): RoundResult[] {
                 playerFused = true;
             }
             if (playerFused) {
-                ensureHandSize(playerHand, talon);
+                ensureHandSize(playerHand, talon, 'spieler');
             }
 
             let aiFused = false;
@@ -878,11 +900,11 @@ export function simulateGames(numGames: number): RoundResult[] {
                 aiFused = true;
             }
             if (aiFused) {
-                ensureHandSize(aiHand, talon);
+                ensureHandSize(aiHand, talon, 'gegner');
             }
 
-            ensureHandSize(playerHand, talon);
-            ensureHandSize(aiHand, talon);
+            ensureHandSize(playerHand, talon, 'spieler');
+            ensureHandSize(aiHand, talon, 'gegner');
 
             const playerSelection = selectCardForSimulation(
                 playerHand,
@@ -967,8 +989,10 @@ export function simulateGames(numGames: number): RoundResult[] {
                 aiTokens,
             });
 
-            ensureHandSize(playerHand, talon);
-            ensureHandSize(aiHand, talon);
+            ensureHandSize(playerHand, talon, 'spieler');
+            ensureHandSize(aiHand, talon, 'gegner');
+
+            roundsPlayed += 1;
         }
     }
     augmentWithFocusRounds(numGames, allData);
