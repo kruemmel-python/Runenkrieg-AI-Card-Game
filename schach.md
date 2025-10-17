@@ -374,5 +374,3 @@ Verwendung, Anpassung und Forschung ausdrücklich erlaubt – bitte unter Namens
 ```
 
 
- etc.)?
-```
