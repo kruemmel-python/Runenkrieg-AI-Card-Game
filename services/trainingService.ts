@@ -34,6 +34,7 @@ import {
     evaluateRiskAndWeather,
     resolveMechanicEffects,
 } from './mechanicEngine';
+import { buildShuffledDeck, getRandomCardTemplate } from './cardCatalogService';
 
 const WILSON_Z = 1.96;
 
@@ -64,6 +65,7 @@ const createCardTemplate = (label: string, idSuffix: string): Card => {
         mechanics: ABILITY_MECHANICS[ability] || [],
         lifespan: cardType.defaultLifespan,
         charges: cardType.defaultCharges,
+        origin: 'core',
     };
 };
 
@@ -115,12 +117,12 @@ const createFusionCard = (primary: Card, secondary: Card): Card => {
 };
 
 const generateReplacementCard = (ownerLabel: 'spieler' | 'gegner'): Card => {
-    const element = ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)];
-    const ability = ABILITIES[Math.floor(Math.random() * ABILITIES.length)];
-    return createCardTemplate(
-        `${element} ${ability}`,
-        `${ownerLabel}-generated-${generatedCardCounter++}`
-    );
+    const template = getRandomCardTemplate();
+    return {
+        ...template,
+        id: `${template.id}-${ownerLabel}-generated-${generatedCardCounter++}`,
+        origin: 'generated',
+    };
 };
 
 const ensureHandSize = (
@@ -744,31 +746,6 @@ function determineWinnerInSim(
     return "unentschieden";
 }
 
-function generateDeck(): Card[] {
-    const deck: Card[] = [];
-    ELEMENTS.forEach((element, elementIndex) => {
-        ABILITIES.forEach((wert, abilityIndex) => {
-            const cardType = CARD_TYPES[(elementIndex + abilityIndex) % CARD_TYPES.length];
-            deck.push({
-                element,
-                wert,
-                id: `${element}-${wert}-${elementIndex}-${abilityIndex}`,
-                cardType: cardType.name,
-                mechanics: ABILITY_MECHANICS[wert] || [],
-                lifespan: cardType.defaultLifespan,
-                charges: cardType.defaultCharges,
-            });
-        });
-    });
-    // Fisher-Yates shuffle
-    for (let i = deck.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [deck[i], deck[j]] = [deck[j], deck[i]];
-    }
-    return deck;
-}
-
-
 const simulateFocusedRound = (
     detail: FocusContextDetail,
     sampleIndex: number
@@ -859,7 +836,7 @@ export function simulateGames(numGames: number): RoundResult[] {
     const heroNames = Object.keys(HEROES) as HeroName[];
 
     for (let i = 0; i < numGames; i++) {
-        const deck = generateDeck();
+        const deck = buildShuffledDeck();
         let playerHand = deck.slice(0, 4);
         let aiHand = deck.slice(4, 8);
         let talon = deck.slice(8);

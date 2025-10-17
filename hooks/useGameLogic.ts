@@ -6,7 +6,6 @@ import {
     HeroName,
     WeatherType,
     Winner,
-    ValueType,
 } from '../types';
 import {
     ELEMENTS,
@@ -16,8 +15,6 @@ import {
     HEROES,
     WEATHER_EFFECTS,
     ELEMENT_HIERARCHIE,
-    CARD_TYPES,
-    ABILITY_MECHANICS,
     ELEMENT_SYNERGIES
 } from '../constants';
 import { chooseCard } from '../services/aiService';
@@ -26,31 +23,19 @@ import {
     evaluateRiskAndWeather,
     resolveMechanicEffects,
 } from '../services/mechanicEngine';
+import { buildShuffledDeck, getRandomCardTemplate } from '../services/cardCatalogService';
 
 const getAbilityIndex = (value: Card['wert']) => ABILITIES.indexOf(value);
 
 let generatedCardCounter = 0;
 
-const createCardTemplate = (element: ElementType, ability: ValueType, idSuffix: string): Card => {
-    const elementIndex = ELEMENTS.indexOf(element);
-    const abilityIndex = ABILITIES.indexOf(ability);
-    const cardTypeConfig = CARD_TYPES[(elementIndex + abilityIndex) % CARD_TYPES.length];
-
-    return {
-        element,
-        wert: ability,
-        id: `${element}-${ability}-${idSuffix}`,
-        cardType: cardTypeConfig.name,
-        mechanics: ABILITY_MECHANICS[ability] || [],
-        lifespan: cardTypeConfig.defaultLifespan,
-        charges: cardTypeConfig.defaultCharges,
-    };
-};
-
 const generateReplacementCard = (owner: 'spieler' | 'gegner'): Card => {
-    const element = ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)];
-    const ability = ABILITIES[Math.floor(Math.random() * ABILITIES.length)];
-    return createCardTemplate(element, ability, `${owner}-generated-${generatedCardCounter++}`);
+    const template = getRandomCardTemplate();
+    return {
+        ...template,
+        id: `${template.id}-${owner}-generated-${generatedCardCounter++}`,
+        origin: 'generated',
+    };
 };
 
 const refillHand = (
@@ -127,35 +112,10 @@ export const useGameLogic = () => {
     const [gameHistory, setGameHistory] = useState<GameHistoryEntry[]>([]);
     const [fusionSelection, setFusionSelection] = useState<{ card: Card; index: number } | null>(null);
 
-    const createDeck = useCallback(() => {
-        const newDeck: Card[] = [];
-        ELEMENTS.forEach((element, elementIndex) => {
-            ABILITIES.forEach((wert, abilityIndex) => {
-                const cardTypeConfig = CARD_TYPES[(elementIndex + abilityIndex) % CARD_TYPES.length];
-                const mechanics = ABILITY_MECHANICS[wert] || [];
-                newDeck.push({
-                    element,
-                    wert,
-                    id: `${element}-${wert}-${elementIndex}-${abilityIndex}`,
-                    cardType: cardTypeConfig.name,
-                    mechanics,
-                    lifespan: cardTypeConfig.defaultLifespan,
-                    charges: cardTypeConfig.defaultCharges,
-                });
-            });
-        });
-        // Fisher-Yates shuffle
-        for (let i = newDeck.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
-        }
-        return newDeck;
-    }, []);
-
     const startGame = useCallback(() => {
-        const newDeck = createDeck();
+        const newDeck = buildShuffledDeck();
         const heroNames = Object.keys(HEROES) as HeroName[];
-        
+
         setPlayerHero(heroNames[Math.floor(Math.random() * heroNames.length)]);
         setAiHero(heroNames[Math.floor(Math.random() * heroNames.length)]);
         
@@ -172,7 +132,7 @@ export const useGameLogic = () => {
         setFusionSelection(null);
         setGamePhase('playerTurn');
         setStatusText('Du bist am Zug. Wähle eine Karte.');
-    }, [createDeck]);
+    }, []);
 
     const resolveMechanicOutcomes = useCallback((params: {
         winner: Winner;
