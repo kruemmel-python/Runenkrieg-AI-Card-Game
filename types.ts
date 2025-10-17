@@ -23,6 +23,7 @@ export interface Card {
   mechanics: AbilityMechanicName[];
   lifespan?: number;
   charges?: number;
+  origin?: 'core' | 'custom' | 'generated';
 }
 
 export interface Player {

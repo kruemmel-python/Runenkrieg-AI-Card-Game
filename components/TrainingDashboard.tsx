@@ -4,6 +4,7 @@ import { RoundResult, SimulationAnalysis, TrainingAnalysis, ContextInsight } fro
 import { simulateGames, trainModel } from '../services/trainingService';
 import { setTrainedModel, isAiTrained } from '../services/aiService';
 import Spinner from './Spinner';
+import CardGenerator from './CardGenerator';
 
 const getMostFrequent = <T,>(items: T[]): T | null => {
   if (items.length === 0) {
@@ -246,6 +247,8 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
         <h1 className="text-4xl font-bold text-center mb-2 text-purple-400">KI Trainingszentrum</h1>
         <p className="text-center text-slate-400 mb-8">Hier kannst du die KI trainieren, um bessere Entscheidungen zu treffen.</p>
         
+        <CardGenerator />
+
         <div className="mb-6 p-4 bg-slate-800 rounded-lg">
             <h2 className="text-xl font-semibold mb-2 text-cyan-300">Aktueller KI-Status</h2>
             <p className="text-slate-300">{aiStatus}</p>
