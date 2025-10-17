@@ -249,11 +249,12 @@ const CardGenerator: React.FC = () => {
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            overflow: hidden;
+            overflow: visible;
+            cursor: pointer;
+            transition: transform 160ms ease, box-shadow 160ms ease;
         }
         .card:hover {
             transform: translateY(-6px) scale(1.02);
-            transition: transform 160ms ease, box-shadow 160ms ease;
             box-shadow: 0 25px 55px rgba(15, 23, 42, 0.6);
         }
         .card-row {
