@@ -1,15 +1,28 @@
-import { ELEMENTS, ABILITIES, HEROES, WEATHER_EFFECTS } from './constants';
+import {
+  ELEMENTS,
+  ABILITIES,
+  HEROES,
+  WEATHER_EFFECTS,
+  CARD_TYPES,
+  ABILITY_MECHANIC_DEFINITIONS
+} from './constants';
 
 export type ElementType = typeof ELEMENTS[number];
 export type ValueType = typeof ABILITIES[number];
 export type HeroName = keyof typeof HEROES;
 export type WeatherType = keyof typeof WEATHER_EFFECTS;
+export type CardTypeName = typeof CARD_TYPES[number]['name'];
+export type AbilityMechanicName = keyof typeof ABILITY_MECHANIC_DEFINITIONS;
 export type Winner = "spieler" | "gegner" | "unentschieden";
 
 export interface Card {
   element: ElementType;
   wert: ValueType;
   id: string;
+  cardType: CardTypeName;
+  mechanics: AbilityMechanicName[];
+  lifespan?: number;
+  charges?: number;
 }
 
 export interface Player {
@@ -47,21 +60,61 @@ export interface SimulationAnalysis {
   mostCommonAiHero: HeroName | null;
 }
 
+export interface ContextInsight {
+  playerCard: string;
+  weather: WeatherType;
+  playerHero: HeroName;
+  aiHero: HeroName;
+  tokenDelta: number;
+  aiCard: string;
+  winRate: number;
+  observations: number;
+}
+
+export interface TokenDeltaCoverage {
+  tokenDelta: number;
+  contextCount: number;
+  solidDataContexts: number;
+  averageWinRate: number;
+}
+
+export interface HeroMatchupInsight {
+  playerHero: HeroName;
+  aiHero: HeroName;
+  contexts: number;
+  observations: number;
+  averageBestWinRate: number;
+  topCounter?: ContextInsight;
+}
+
+export interface ElementCounterInsight {
+  playerElement: ElementType;
+  counters: {
+    aiCard: string;
+    winRate: number;
+    observations: number;
+  }[];
+}
+
+export interface MechanicEffectivenessInsight {
+  mechanic: AbilityMechanicName;
+  winRate: number;
+  observations: number;
+}
+
 export interface TrainingAnalysis {
   totalContexts: number;
   contextsWithSolidData: number;
   contextsNeedingData: number;
   averageBestWinRate: number;
-  bestContext?: {
-    playerCard: string;
-    weather: WeatherType;
-    playerHero: HeroName;
-    aiHero: HeroName;
-    tokenDelta: number;
-    aiCard: string;
-    winRate: number;
-    observations: number;
-  };
+  bestContext?: ContextInsight;
+  topContexts: ContextInsight[];
+  strugglingContexts: ContextInsight[];
+  dataGaps: ContextInsight[];
+  coverageByTokenDelta: TokenDeltaCoverage[];
+  heroMatchupInsights: HeroMatchupInsight[];
+  elementCounterInsights: ElementCounterInsight[];
+  mechanicEffectiveness: MechanicEffectivenessInsight[];
 }
 
 export interface TrainedModel {

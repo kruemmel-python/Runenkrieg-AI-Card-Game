@@ -58,8 +58,17 @@ Diese Ansicht ist für das Management und Training der KI vorgesehen. Sie ist in
     *   **"Trainiere KI mit Daten"-Button:** Startet den Trainingsprozess basierend auf den gesammelten Simulationsdaten.
     *   **Statusmeldung:** Zeigt den Fortschritt des Trainings an.
 *   **Simulationsanalyse:** Zeigt detaillierte Statistiken der durchgeführten Simulationen an (Siegquoten, häufigste Karten, Wetter etc.).
-*   **Trainingsanalyse:** Zeigt Ergebnisse des KI-Trainings an, einschließlich der Abdeckung von Spielkontexten und dem "stärksten Szenario", das die KI gelernt hat.
+*   **Trainingsanalyse:** Zeigt umfassende Ergebnisse des KI-Trainings, darunter Kontextabdeckung, stärkste und schwächste Szenarien, Helden-Matchups, Elementkonter und die Wirksamkeit der einzelnen Mechaniken.
 *   **"Zurück zum Spiel"-Button:** Wechselt zurück zur Spielbrett-Ansicht.
+
+### 2.3 Neue Kartentypen, Elemente und Synergien
+
+Runenkrieg wurde um zusätzliche Kartentypen und Elemente erweitert, um langfristige Strategien zu belohnen:
+
+*   **Kartentypen:** Artefakte (dauerhafte Buffs), Beschwörungen (temporäre Einheiten), Runensteine (einmalige globale Effekte), Verbündete (Synergie-Verstärker) sowie Segen/Flüche (zeitlich begrenzte Modifikatoren).
+*   **Neue Elemente:** Schatten, Licht, Chaos und zusätzliche Kombinationseffekte für bestehende Elemente wie Wasser + Blitz → Überladung oder Feuer + Erde → Lavafeld.
+*   **Fähigkeitsmechaniken:** Karten können Ketteneffekte, Elementarresonanz, Überladung, Fusion oder Wetterbindung besitzen. Diese Mechaniken werden in der Karten-Detailansicht erläutert.
+*   **Synergie-Anzeige:** Sobald du eine Karte hoverst, siehst du neben dem Elementeffekt auch den Kartentyp, aktive Mechaniken sowie mögliche Laufzeiten oder Ladungen.
 
 ## 3. Das Spiel spielen: Schritt-für-Schritt-Anleitung
 
@@ -74,7 +83,7 @@ Runenkrieg ist ein rundenbasiertes Kartenspiel, bei dem Sie gegen eine KI antret
 
 1.  **Warten auf Ihren Zug:** Die Statusanzeige in der unteren Leiste informiert Sie, wenn Sie am Zug sind ("Du bist am Zug. Wähle eine Karte.").
 2.  **Karte auswählen:** Klicken Sie auf eine der Karten in Ihrer Hand, um sie auszuspielen. Jede Karte hat ein **Element** (z.B. Feuer, Wasser) und eine **Fähigkeit** (z.B. Funke, Avatar), die ihre Grundstärke bestimmt.
-3.  **KI kontert:** Nachdem Sie eine Karte gespielt haben, wählt die KI automatisch eine Karte aus ihrer Hand aus. Ob sie dies zufällig oder strategisch tut, hängt davon ab, ob sie trainiert wurde.
+3.  **KI kontert:** Nachdem Sie eine Karte gespielt haben, wählt die KI automatisch eine Karte aus ihrer Hand aus. Auch ohne Training nutzt sie nun Synergieerkennung, Elementarrelationen und Risikobewertungen, um passende Konter zu finden.
 4.  **Rundenauswertung:**
     *   Beide gespielten Karten werden in der Mitte des Bildschirms angezeigt.
     *   Das **Wetter** für die aktuelle Runde wird bestimmt und angezeigt.
@@ -84,10 +93,21 @@ Runenkrieg ist ein rundenbasiertes Kartenspiel, bei dem Sie gegen eine KI antret
         *   **Element-Bonus:** Elemente haben Stärken und Schwächen gegeneinander (z.B. Wasser ist stark gegen Feuer).
         *   **Helden-Bonus:** Ihr Held gibt Ihnen einen Bonus, wenn Sie eine Karte spielen, die zu seinem Element gehört.
         *   **Moral-Bonus:** Sie erhalten einen Stärkebonus, wenn Sie mehr Tokens besitzen als Ihr Gegner.
+        *   **Synergie-Boni:** Ketteneffekte, Elementarresonanz und Fusionsmöglichkeiten erhöhen die Gesamtstärke, wenn passende Karten bereits gespielt oder auf der Hand sind.
     *   Der Gewinner der Runde wird ermittelt und seine Karte wird visuell hervorgehoben.
 5.  **Effekte anwenden & Karten nachziehen:**
     *   Die Gewinnerkarte der Runde löst ihren **Element-Effekt** aus, der die Token-Anzahl der Spieler beeinflusst (z.B. Feuer reduziert Gegnertokens, Luft erhöht eigene Tokens).
     *   Danach ziehen beide Spieler eine Karte vom Stapel nach, solange dieser nicht leer ist und ihre Hand nicht voll ist (max. 4 Karten).
+
+#### Aktive Fähigkeitsmechaniken
+
+*   **Ketteneffekte:** Gewinne zwei Runden in Folge mit Karten, die Ketteneffekte besitzen, und dein Gegner verliert einen zusätzlichen Token durch den Folgeangriff.
+*   **Elementarresonanz:** Wiederhole dein Element. Nach drei erfolgreichen Einsätzen desselben Elements erhältst du dank der Resonanz einen weiteren Token.
+*   **Überladung:** Mächtige Karten mit Überladung zahlen immer einen Preis – nach dem Ausspielen sinkt der eigene Token-Vorrat um 1, unabhängig vom Rundenergebnis.
+*   **Wetterbindung:** Karten, die an Wetter gebunden sind, verstärken oder schwächen sich sofort um Token entsprechend des aktuellen Wetters.
+*   **Verbündeter:** Unterstützerkarten schenken dir einen zusätzlichen Token, wenn sich noch Karten desselben Elements in deiner Hand befinden.
+*   **Segen/Fluch:** Liegt dein Tokenstand zurück, heilt der Segen einen Token. Liegt er vorn, schwächt der Fluch den Gegner um einen Token.
+*   **Fusion:** Besitzt du zwei Karten mit der Mechanik „Fusion“, klicke sie nacheinander an, um eine neue, verstärkte Karte zu erschaffen. Ein erneuter Klick auf die zuerst gewählte Karte bricht die Fusion ab und spielt die Karte normal aus.
 
 ### 3.3 Spielende
 
@@ -120,9 +140,19 @@ Das KI-Trainingszentrum ermöglicht es Ihnen, die künstliche Intelligenz des Ge
     *   **Kontexte mit wenig Daten:** Situationen, für die mehr Simulationen hilfreich wären.
     *   **Ø beste Siegquote:** Die durchschnittliche Siegquote, die die KI in den gelernten Kontexten erzielen kann.
     *   **Stärkstes Szenario:** Ein Beispiel für eine Spielsituation, in der die KI eine besonders hohe Siegquote gelernt hat, und welche Karte sie dort am besten einsetzt.
+    *   **Top Sieg-Szenarien & Problemfälle:** Eine Topliste der zuverlässigsten Konter sowie eine Übersicht über schwache oder riskante Kontexte.
+    *   **Datenlücken:** Kontexte mit weniger als fünf Beobachtungen, die zusätzliche Simulationen benötigen.
+    *   **Token-Delta-Abdeckung:** Wie gut verschiedene Vorteilssituationen (Token-Differenzen) abgedeckt sind.
+    *   **Helden-Matchup-Trends:** Welche Heldenpaarungen besonders viele Daten besitzen und wie hoch die durchschnittliche Konterquote der KI ist.
+    *   **Elementare Konter:** Gegenüberstellung, welche Karten besonders gut gegen bestimmte Spieler-Elemente funktionieren.
+    *   **Mechanik-Wirksamkeit:** Siegquoten und Datenlage pro Fähigkeitmechanik wie Fusion, Überladung oder Elementarresonanz.
 4.  **KI-Status aktualisiert:** Der "Aktueller KI-Status" wird auf "KI wurde mit neuen Daten trainiert und ist aktiv." aktualisiert. Die KI wird nun ihre neu erlernte Strategie in zukünftigen Spielen anwenden.
 
-### 4.3 Zurück zum Spiel
+### 4.3 Adaptive KI ohne Training
+
+Auch im untrainierten Zustand bewertet die KI nun Karten anhand von Elementrelationen, Synergien (z.B. Überladung oder Fusion), Wettervorteilen und Risikoabschätzungen. Sie versucht, thematische Decks des Gegners zu erkennen und kontert bevorzugt dominante Elemente. Ein Training mit Simulationsdaten verbessert diese Strategie zusätzlich.
+
+### 4.4 Zurück zum Spiel
 
 Klicken Sie auf den Button **"Zurück zum Spiel"**, um zum Spielbrett zurückzukehren und gegen die nun trainierte KI anzutreten.
 
@@ -166,4 +196,10 @@ Das Runenkrieg-Spiel bietet die Möglichkeit, nach jeder Partie eine einzigartig
 *   **Ø Token nach Runden:** Der durchschnittliche Token-Stand des Spielers/der KI nach jeder Runde in den Simulationen.
 *   **Kontexte:** Bezieht sich auf spezifische Spielsituationen (Kombination aus gespielter Spielerkarte, Wetter, Helden und Token-Differenz), für die die KI gelernt hat, wie sie am besten reagiert.
 *   **Stärkstes Szenario:** Zeigt eine spezifische Spielsituation, in der die KI die höchste Siegwahrscheinlichkeit gelernt hat, wenn sie eine bestimmte Karte spielt.
+*   **Top/Problem-Szenarien:** Listen mit den zuverlässigsten Kontern sowie den Kontexten, in denen die KI noch schwache Ergebnisse erzielt.
+*   **Datenlücken:** Kontexte mit sehr wenigen Beobachtungen – hier lohnt sich weiteres Training.
+*   **Token-Delta-Abdeckung:** Veranschaulicht, ob die KI mehr Daten bei Vor- oder Nachteilen gesammelt hat.
+*   **Helden-Matchup-Trends:** Durchschnittliche Konterqualität je Heldenpaarung inklusive bestbewerteter Antwort.
+*   **Elementare Konter:** Welche Karten (und damit Elemente) die höchsten Siegquoten gegen bestimmte Spieler-Elemente aufweisen.
+*   **Mechanik-Wirksamkeit:** Zeigt, welche Fähigkeitmechaniken aktuell die besten Ergebnisse liefern und wie umfangreich die Datenbasis ist.
 

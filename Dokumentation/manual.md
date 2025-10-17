@@ -58,7 +58,7 @@ Diese Ansicht ist für das Management und Training der KI vorgesehen. Sie ist in
     *   **"Trainiere KI mit Daten"-Button:** Startet den Trainingsprozess basierend auf den gesammelten Simulationsdaten.
     *   **Statusmeldung:** Zeigt den Fortschritt des Trainings an.
 *   **Simulationsanalyse:** Zeigt detaillierte Statistiken der durchgeführten Simulationen an (Siegquoten, häufigste Karten, Wetter etc.).
-*   **Trainingsanalyse:** Zeigt Ergebnisse des KI-Trainings an, einschließlich der Abdeckung von Spielkontexten und dem "stärksten Szenario", das die KI gelernt hat.
+*   **Trainingsanalyse:** Zeigt umfassende Ergebnisse des KI-Trainings, darunter Kontextabdeckung, stärkste und schwächste Szenarien, Helden-Matchups, Elementkonter und die Wirksamkeit der einzelnen Mechaniken.
 *   **"Zurück zum Spiel"-Button:** Wechselt zurück zur Spielbrett-Ansicht.
 
 ## 3. Das Spiel spielen: Schritt-für-Schritt-Anleitung
@@ -120,6 +120,12 @@ Das KI-Trainingszentrum ermöglicht es Ihnen, die künstliche Intelligenz des Ge
     *   **Kontexte mit wenig Daten:** Situationen, für die mehr Simulationen hilfreich wären.
     *   **Ø beste Siegquote:** Die durchschnittliche Siegquote, die die KI in den gelernten Kontexten erzielen kann.
     *   **Stärkstes Szenario:** Ein Beispiel für eine Spielsituation, in der die KI eine besonders hohe Siegquote gelernt hat, und welche Karte sie dort am besten einsetzt.
+    *   **Top Sieg-Szenarien & Problemfälle:** Eine Topliste der zuverlässigsten Konter sowie eine Übersicht über schwache oder riskante Kontexte.
+    *   **Datenlücken:** Kontexte mit weniger als fünf Beobachtungen, die zusätzliche Simulationen benötigen.
+    *   **Token-Delta-Abdeckung:** Wie gut verschiedene Vorteilssituationen (Token-Differenzen) abgedeckt sind.
+    *   **Helden-Matchup-Trends:** Welche Heldenpaarungen besonders viele Daten besitzen und wie hoch die durchschnittliche Konterquote der KI ist.
+    *   **Elementare Konter:** Gegenüberstellung, welche Karten besonders gut gegen bestimmte Spieler-Elemente funktionieren.
+    *   **Mechanik-Wirksamkeit:** Siegquoten und Datenlage pro Fähigkeitmechanik wie Fusion, Überladung oder Elementarresonanz.
 4.  **KI-Status aktualisiert:** Der "Aktueller KI-Status" wird auf "KI wurde mit neuen Daten trainiert und ist aktiv." aktualisiert. Die KI wird nun ihre neu erlernte Strategie in zukünftigen Spielen anwenden.
 
 ### 4.3 Zurück zum Spiel
@@ -166,4 +172,10 @@ Das Runenkrieg-Spiel bietet die Möglichkeit, nach jeder Partie eine einzigartig
 *   **Ø Token nach Runden:** Der durchschnittliche Token-Stand des Spielers/der KI nach jeder Runde in den Simulationen.
 *   **Kontexte:** Bezieht sich auf spezifische Spielsituationen (Kombination aus gespielter Spielerkarte, Wetter, Helden und Token-Differenz), für die die KI gelernt hat, wie sie am besten reagiert.
 *   **Stärkstes Szenario:** Zeigt eine spezifische Spielsituation, in der die KI die höchste Siegwahrscheinlichkeit gelernt hat, wenn sie eine bestimmte Karte spielt.
+*   **Top/Problem-Szenarien:** Listen mit den zuverlässigsten Kontern sowie den Kontexten, in denen die KI noch schwache Ergebnisse erzielt.
+*   **Datenlücken:** Kontexte mit sehr wenigen Beobachtungen – hier lohnt sich weiteres Training.
+*   **Token-Delta-Abdeckung:** Veranschaulicht, ob die KI mehr Daten bei Vor- oder Nachteilen gesammelt hat.
+*   **Helden-Matchup-Trends:** Durchschnittliche Konterqualität je Heldenpaarung inklusive bestbewerteter Antwort.
+*   **Elementare Konter:** Welche Karten (und damit Elemente) die höchsten Siegquoten gegen bestimmte Spieler-Elemente aufweisen.
+*   **Mechanik-Wirksamkeit:** Zeigt, welche Fähigkeitmechaniken aktuell die besten Ergebnisse liefern und wie umfangreich die Datenbasis ist.
 

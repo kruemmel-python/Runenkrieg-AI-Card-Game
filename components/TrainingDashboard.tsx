@@ -95,6 +95,53 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
     if (delta < 0) return 'zugunsten der KI';
     return 'ohne Token-Vorsprung';
   };
+
+  const renderContextList = (
+    title: string,
+    contexts: TrainingAnalysis['topContexts'],
+    emptyMessage?: string
+  ) => {
+    if (!contexts || contexts.length === 0) {
+      return emptyMessage ? (
+        <div className="mt-6">
+          <h4 className="text-xl font-semibold text-white mb-3">{title}</h4>
+          <p className="text-slate-400 text-sm">{emptyMessage}</p>
+        </div>
+      ) : null;
+    }
+
+    return (
+      <div className="mt-6">
+        <h4 className="text-xl font-semibold text-white mb-3">{title}</h4>
+        <ul className="space-y-3">
+          {contexts.map((context, index) => (
+            <li
+              key={`${title}-${context.playerCard}-${context.aiCard}-${index}`}
+              className="bg-slate-900 p-4 rounded-lg border border-slate-700"
+            >
+              <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">#{index + 1}</p>
+              <p>
+                Spielerkarte <span className="text-purple-300">{context.playerCard}</span> bei Wetter{' '}
+                <span className="text-purple-300">{context.weather}</span> wird am besten mit{' '}
+                <span className="text-purple-300">{context.aiCard}</span> beantwortet.
+              </p>
+              <p className="mt-1 text-sm text-slate-300">
+                Helden-Duell{' '}
+                <span className="text-purple-300">{context.playerHero}</span> vs.{` `}
+                <span className="text-purple-300">{context.aiHero}</span> bei einer Token-Differenz von{' '}
+                <span className="text-purple-300">{formatTokenDelta(context.tokenDelta)}</span>{' '}
+                {describeTokenAdvantage(context.tokenDelta)}.
+              </p>
+              <p className="mt-1 text-sm">
+                Siegquote: <span className="text-green-400">{formatPercent(context.winRate)}</span> ·{' '}
+                Beobachtungen: {formatNumber(context.observations)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
   
   const handleSimulate = useCallback(() => {
     setIsSimulating(true);
@@ -229,7 +276,7 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
         {trainingAnalysis && (
             <div className="mt-8 bg-slate-800 p-6 rounded-lg">
                 <h3 className="text-2xl font-bold mb-4 text-green-300">Trainingsanalyse</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-slate-300">
                     <div>
                         <span className="font-semibold text-white">Kontexte insgesamt:</span> {formatNumber(trainingAnalysis.totalContexts)}
                     </div>
@@ -242,9 +289,16 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
                     <div>
                         <span className="font-semibold text-white">Ø beste Siegquote:</span> {formatPercent(trainingAnalysis.averageBestWinRate)}
                     </div>
+                    <div>
+                        <span className="font-semibold text-white">Mechaniken getrackt:</span> {formatNumber(trainingAnalysis.mechanicEffectiveness.length)}
+                    </div>
+                    <div>
+                        <span className="font-semibold text-white">Helden-Matchups analysiert:</span> {formatNumber(trainingAnalysis.heroMatchupInsights.length)}
+                    </div>
                 </div>
+
                 {trainingAnalysis.bestContext && (
-                    <div className="mt-4 p-4 bg-slate-900 rounded-lg text-slate-200">
+                    <div className="mt-4 p-4 bg-slate-900 rounded-lg text-slate-200 border border-slate-700">
                         <p className="font-semibold text-white mb-2">Stärkstes Szenario</p>
                         <p>
                             Spielerkarte <span className="text-purple-300">{trainingAnalysis.bestContext.playerCard}</span> bei Wetter{' '}
@@ -252,10 +306,9 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
                             <span className="text-purple-300">{trainingAnalysis.bestContext.aiCard}</span> beantwortet.
                         </p>
                         <p className="mt-2">
-                            Helden-Duell:{' '}
-                            <span className="text-purple-300">{trainingAnalysis.bestContext.playerHero}</span> vs.{' '}
-                            <span className="text-purple-300">{trainingAnalysis.bestContext.aiHero}</span>
-                            {' '}bei einer Token-Differenz von{' '}
+                            Helden-Duell{' '}
+                            <span className="text-purple-300">{trainingAnalysis.bestContext.playerHero}</span> vs.{` `}
+                            <span className="text-purple-300">{trainingAnalysis.bestContext.aiHero}</span> bei einer Token-Differenz von{' '}
                             <span className="text-purple-300">{formatTokenDelta(trainingAnalysis.bestContext.tokenDelta)}</span>{' '}
                             {describeTokenAdvantage(trainingAnalysis.bestContext.tokenDelta)}.
                         </p>
@@ -263,6 +316,109 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
                             Siegquote: <span className="text-green-400">{formatPercent(trainingAnalysis.bestContext.winRate)}</span> auf Grundlage von{' '}
                             {formatNumber(trainingAnalysis.bestContext.observations)} Beobachtungen.
                         </p>
+                    </div>
+                )}
+
+                {renderContextList('Top Sieg-Szenarien', trainingAnalysis.topContexts)}
+                {renderContextList(
+                    'Problematische Szenarien',
+                    trainingAnalysis.strugglingContexts,
+                    'Noch keine Szenarien mit ausreichend Daten, die als Schwachstellen gelten.'
+                )}
+                {renderContextList(
+                    'Datenlücken (unter 5 Beobachtungen)',
+                    trainingAnalysis.dataGaps,
+                    'Alle aktuell gelernten Kontexte besitzen mindestens fünf Beobachtungen.'
+                )}
+
+                {trainingAnalysis.coverageByTokenDelta.length > 0 && (
+                    <div className="mt-6">
+                        <h4 className="text-xl font-semibold text-white mb-3">Token-Delta Abdeckung</h4>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-left text-sm">
+                                <thead className="uppercase text-xs text-slate-400">
+                                    <tr>
+                                        <th className="py-2 pr-4">Delta</th>
+                                        <th className="py-2 pr-4">Kontexte</th>
+                                        <th className="py-2 pr-4">Solide Daten</th>
+                                        <th className="py-2 pr-4">Ø Winrate</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {trainingAnalysis.coverageByTokenDelta.map((entry) => (
+                                        <tr key={entry.tokenDelta} className="border-t border-slate-700 text-slate-300">
+                                            <td className="py-2 pr-4">{formatTokenDelta(entry.tokenDelta)}</td>
+                                            <td className="py-2 pr-4">{formatNumber(entry.contextCount)}</td>
+                                            <td className="py-2 pr-4">{formatNumber(entry.solidDataContexts)}</td>
+                                            <td className="py-2 pr-4">{formatPercent(entry.averageWinRate)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {trainingAnalysis.heroMatchupInsights.length > 0 && (
+                    <div className="mt-6">
+                        <h4 className="text-xl font-semibold text-white mb-3">Helden-Matchup-Trends</h4>
+                        <ul className="space-y-3">
+                            {trainingAnalysis.heroMatchupInsights.map((insight, index) => (
+                                <li key={`${insight.playerHero}-${insight.aiHero}-${index}`} className="bg-slate-900 p-4 rounded-lg border border-slate-700">
+                                    <p className="font-semibold text-white">
+                                        {insight.playerHero} vs. {insight.aiHero}
+                                    </p>
+                                    <p className="text-sm text-slate-300">
+                                        Kontexte: {formatNumber(insight.contexts)} · Beobachtungen: {formatNumber(insight.observations)} · Ø Konter-Winrate:{' '}
+                                        <span className="text-green-400">{formatPercent(insight.averageBestWinRate)}</span>
+                                    </p>
+                                    {insight.topCounter && (
+                                        <p className="text-sm mt-1 text-slate-300">
+                                            Beste Antwort:{' '}
+                                            <span className="text-purple-300">{insight.topCounter.aiCard}</span> gegen{' '}
+                                            <span className="text-purple-300">{insight.topCounter.playerCard}</span> bei{' '}
+                                            <span className="text-purple-300">{insight.topCounter.weather}</span>.
+                                        </p>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                {trainingAnalysis.elementCounterInsights.length > 0 && (
+                    <div className="mt-6">
+                        <h4 className="text-xl font-semibold text-white mb-3">Elementare Konter</h4>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {trainingAnalysis.elementCounterInsights.map((entry) => (
+                                <div key={entry.playerElement} className="bg-slate-900 p-4 rounded-lg border border-slate-700">
+                                    <p className="font-semibold text-white mb-2">Gegen {entry.playerElement}</p>
+                                    <ul className="space-y-2 text-sm text-slate-300">
+                                        {entry.counters.map((counter) => (
+                                            <li key={`${entry.playerElement}-${counter.aiCard}`}>
+                                                <span className="text-purple-300">{counter.aiCard}</span> · Siegquote{' '}
+                                                <span className="text-green-400">{formatPercent(counter.winRate)}</span> ({formatNumber(counter.observations)} Beobachtungen)
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {trainingAnalysis.mechanicEffectiveness.length > 0 && (
+                    <div className="mt-6">
+                        <h4 className="text-xl font-semibold text-white mb-3">Mechanik-Wirksamkeit</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {trainingAnalysis.mechanicEffectiveness.map((entry) => (
+                                <div key={entry.mechanic} className="bg-slate-900 p-4 rounded-lg border border-slate-700">
+                                    <p className="font-semibold text-white">{entry.mechanic}</p>
+                                    <p className="text-sm text-slate-300">Siegquote: <span className="text-green-400">{formatPercent(entry.winRate)}</span></p>
+                                    <p className="text-sm text-slate-300">Beobachtungen: {formatNumber(entry.observations)}</p>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>

@@ -40,7 +40,7 @@ sequenceDiagram
     deactivate GeminiService
 
     Benutzer->>GameBoard: Wählt Karte zum Spielen
-    GameBoard->>GameLogicHook: playCard(karteIndex)
+    GameBoard->>GameLogicHook: playCard(kartenId)
     GameLogicHook->>GameLogicHook: Bestimmt Wetter
     GameLogicHook->>AIService: chooseCard(spielerKarte, KIHand, gameState)
     activate AIService

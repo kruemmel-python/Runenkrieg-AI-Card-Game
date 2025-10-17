@@ -1499,6 +1499,13 @@
                 <li><code>contextsNeedingData</code>: <code>number</code> - Die Anzahl der Kontexte, für die weitere Daten benötigt werden.</li>
                 <li><code>averageBestWinRate</code>: <code>number</code> - Die durchschnittliche beste Gewinnrate über alle Kontexte.</li>
                 <li><code>bestContext?</code>: <code>{ playerCard: string; weather: WeatherType; playerHero: HeroName; aiHero: HeroName; tokenDelta: number; aiCard: string; winRate: number; observations: number; }</code> - Optional: Details zum Kontext mit der höchsten Gewinnrate.</li>
+                <li><code>topContexts</code>: <code>{ playerCard: string; weather: WeatherType; playerHero: HeroName; aiHero: HeroName; tokenDelta: number; aiCard: string; winRate: number; observations: number; }[]</code> - Die zuverlässigsten Konter-Szenarien inklusive Siegquote und Datenbasis.</li>
+                <li><code>strugglingContexts</code>: <code>{ playerCard: string; weather: WeatherType; playerHero: HeroName; aiHero: HeroName; tokenDelta: number; aiCard: string; winRate: number; observations: number; }[]</code> - Kontexte mit schwacher Performance trotz ausreichender Daten.</li>
+                <li><code>dataGaps</code>: <code>{ playerCard: string; weather: WeatherType; playerHero: HeroName; aiHero: HeroName; tokenDelta: number; aiCard: string; winRate: number; observations: number; }[]</code> - Kontexte mit weniger als fünf Beobachtungen, die zusätzliche Simulationen benötigen.</li>
+                <li><code>coverageByTokenDelta</code>: <code>{ tokenDelta: number; contextCount: number; solidDataContexts: number; averageWinRate: number; }[]</code> - Übersicht, wie gut verschiedene Token-Differenzen abgedeckt sind.</li>
+                <li><code>heroMatchupInsights</code>: <code>{ playerHero: HeroName; aiHero: HeroName; contexts: number; observations: number; averageBestWinRate: number; topCounter?: { playerCard: string; weather: WeatherType; playerHero: HeroName; aiHero: HeroName; tokenDelta: number; aiCard: string; winRate: number; observations: number; } }[]</code> - Heldenpaarungen mit aggregierter Konterleistung.</li>
+                <li><code>elementCounterInsights</code>: <code>{ playerElement: ElementType; counters: { aiCard: string; winRate: number; observations: number; }[] }[]</code> - Zeigt, welche Antworten gegen einzelne Spielerelemente besonders effektiv sind.</li>
+                <li><code>mechanicEffectiveness</code>: <code>{ mechanic: AbilityMechanicName; winRate: number; observations: number; }[]</code> - Siegquoten und Datenlage pro Fähigkeitmechanik.</li>
             </ul>
         </li>
         <li>
