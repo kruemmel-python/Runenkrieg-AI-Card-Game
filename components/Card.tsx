@@ -1,15 +1,29 @@
 import React, { useState } from 'react';
 import { Card as CardType } from '../types';
-import { ELEMENT_COLORS, ABILITIES, ELEMENT_EFFECTS } from '../constants';
+import {
+  ELEMENT_COLORS,
+  ABILITIES,
+  ELEMENT_EFFECTS,
+  ABILITY_MECHANIC_DEFINITIONS
+} from '../constants';
 
 interface CardProps {
   card: CardType | null;
   isFaceDown?: boolean;
   onClick?: () => void;
   className?: string;
+  isSelected?: boolean;
+  disabled?: boolean;
 }
 
-const Card: React.FC<CardProps> = ({ card, isFaceDown = false, onClick, className = '' }) => {
+const Card: React.FC<CardProps> = ({
+  card,
+  isFaceDown = false,
+  onClick,
+  className = '',
+  isSelected = false,
+  disabled = false,
+}) => {
   const [isHovered, setIsHovered] = useState(false);
 
   if (isFaceDown) {
@@ -26,13 +40,20 @@ const Card: React.FC<CardProps> = ({ card, isFaceDown = false, onClick, classNam
      return <div className={`w-36 h-52 sm:w-40 sm:h-56 rounded-xl bg-slate-800/50 border-2 border-dashed border-slate-600 ${className}`} />;
   }
 
-  const { element, wert } = card;
+  const { element, wert, cardType, mechanics, lifespan, charges } = card;
   const colors = ELEMENT_COLORS[element] || { from: 'from-gray-500', to: 'to-gray-400', icon: '❓' };
+
+  const interactivityClasses = disabled
+    ? 'cursor-not-allowed opacity-60'
+    : 'cursor-pointer';
+
+  const selectionClasses = isSelected ? 'ring-4 ring-yellow-300 scale-105' : '';
+  const hoverClasses = disabled ? '' : 'hover:scale-105 hover:shadow-2xl';
 
   return (
     <div
-      className={`relative w-36 h-52 sm:w-40 sm:h-56 p-2 rounded-xl bg-gradient-to-br ${colors.from} ${colors.to} text-black border-2 border-white/50 shadow-xl flex flex-col justify-between cursor-pointer transform hover:scale-105 hover:shadow-2xl transition-all duration-300 ${className}`}
-      onClick={onClick}
+      className={`relative w-36 h-52 sm:w-40 sm:h-56 p-2 rounded-xl bg-gradient-to-br ${colors.from} ${colors.to} text-black border-2 border-white/50 shadow-xl flex flex-col justify-between transform ${hoverClasses} transition-all duration-300 ${interactivityClasses} ${selectionClasses} ${className}`}
+      onClick={disabled ? undefined : onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -45,7 +66,26 @@ const Card: React.FC<CardProps> = ({ card, isFaceDown = false, onClick, classNam
                 <span className="font-bold text-base text-cyan-400">{wert}</span>
                 <span className="font-bold text-base text-yellow-400">Stärke: {ABILITIES.indexOf(wert)}</span>
             </div>
+            <p className="text-sm text-emerald-300 font-semibold">Typ: {cardType}</p>
             <p className="mt-1 text-slate-300">{ELEMENT_EFFECTS[element]}</p>
+            {mechanics.length > 0 && (
+                <div className="mt-2">
+                    <p className="text-xs uppercase tracking-wide text-indigo-300">Mechaniken</p>
+                    <ul className="mt-1 space-y-1 list-disc list-inside text-xs text-slate-200">
+                        {mechanics.map(mechanic => (
+                            <li key={mechanic}>
+                                <span className="font-semibold text-sky-300">{mechanic}:</span> {ABILITY_MECHANIC_DEFINITIONS[mechanic].summary}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+            {(lifespan || charges) && (
+                <div className="mt-2 text-xs text-slate-300">
+                    {lifespan && <p>Dauer: {lifespan} Züge</p>}
+                    {charges && <p>Nutzungen: {charges}</p>}
+                </div>
+            )}
         </div>
       )}
 
@@ -55,6 +95,7 @@ const Card: React.FC<CardProps> = ({ card, isFaceDown = false, onClick, classNam
       </div>
       <div className="text-center">
         <h3 className="text-lg font-bold tracking-wider">{element}</h3>
+        <p className="text-xs font-semibold uppercase tracking-widest text-white/80">{cardType}</p>
       </div>
       <div className="flex justify-between items-end">
         <span className="text-4xl transform -scale-x-100">{colors.icon}</span>
