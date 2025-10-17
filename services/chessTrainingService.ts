@@ -109,13 +109,24 @@ const chooseSimulationMove = (
     return bestMove;
 };
 
-export const simulateChessGames = (
+const yieldToEventLoop = () =>
+    new Promise<void>((resolve) => {
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(() => resolve());
+        } else {
+            setTimeout(resolve, 0);
+        }
+    });
+
+export const simulateChessGames = async (
     count: number,
-    options: ChessSimulationOptions = {}
-): ChessSimulationResult[] => {
+    options: ChessSimulationOptions = {},
+    onProgress?: (completed: number, total: number) => void
+): Promise<ChessSimulationResult[]> => {
     const results: ChessSimulationResult[] = [];
     const maxPlies = options.maxPlies ?? MAX_PLIES_DEFAULT;
     const randomness = options.randomness ?? 1;
+    const yieldInterval = Math.max(1, Math.floor(200 / Math.max(1, maxPlies / 10)));
 
     for (let i = 0; i < count; i++) {
         const game = new SimpleChess();
@@ -144,6 +155,14 @@ export const simulateChessGames = (
             plies,
             openingSequence: buildOpeningSequence(uciSequence),
         });
+
+        const completed = i + 1;
+        if (onProgress) {
+            onProgress(completed, count);
+        }
+        if (completed % yieldInterval === 0 && completed < count) {
+            await yieldToEventLoop();
+        }
     }
 
     return results;

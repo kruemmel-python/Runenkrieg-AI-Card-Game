@@ -105,6 +105,7 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
   const [chessSummary, setChessSummary] = useState<ChessTrainingSummary | null>(null);
   const [chessInsights, setChessInsights] = useState<ChessAiInsight[]>([]);
   const [isChessSimulating, setIsChessSimulating] = useState<boolean>(false);
+  const [chessSimulationProgress, setChessSimulationProgress] = useState<number>(0);
   const [isChessTraining, setIsChessTraining] = useState<boolean>(false);
   const [chessStatus, setChessStatus] = useState<string>(
     isChessAiTrained() ? 'Schach-KI ist trainiert und aktiv.' : 'Schach-KI nutzt heuristische Heuristiken.'
@@ -130,16 +131,22 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
     return badges;
   };
 
-  const handleChessSimulation = useCallback(() => {
+  const handleChessSimulation = useCallback(async () => {
     setIsChessSimulating(true);
+    setChessSimulationProgress(0);
+    setChessStatus('Starte Schach-Simulation...');
     try {
-      const results = simulateChessGames(chessSimulationCount);
+      const results = await simulateChessGames(chessSimulationCount, {}, (completed, total) => {
+        setChessSimulationProgress(completed / total);
+        setChessStatus(`Simuliere Schachpartien (${completed}/${total})...`);
+      });
       setChessSimulations(results);
       setChessSummary(summarizeChessSimulations(results));
       setChessStatus('Schach-Simulation abgeschlossen. Trainiere jetzt das Modell.');
     } catch (error) {
       console.error('Fehler bei der Schach-Simulation:', error);
       setChessStatus('Fehler bei der Schach-Simulation.');
+      setChessSimulationProgress(0);
     } finally {
       setIsChessSimulating(false);
     }
@@ -771,7 +778,9 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
                                     : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                             }`}
                         >
-                            {isChessSimulating ? 'Simuliere...' : 'Schach-Simulation starten'}
+                            {isChessSimulating
+                                ? `Simuliere... ${Math.round(chessSimulationProgress * 100)}%`
+                                : 'Schach-Simulation starten'}
                         </button>
                         <button
                             onClick={handleChessTraining}
@@ -786,6 +795,14 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
                         </button>
                     </div>
                     <p className="text-sm text-slate-300">{chessStatus}</p>
+                    {isChessSimulating && (
+                        <div className="w-full h-2 bg-slate-700 rounded overflow-hidden">
+                            <div
+                                className="h-full bg-emerald-500 transition-all duration-200"
+                                style={{ width: `${Math.min(100, Math.round(chessSimulationProgress * 100))}%` }}
+                            />
+                        </div>
+                    )}
                     {chessSimulations.length > 0 && (
                         <p className="text-xs text-slate-400">
                             Zuletzt simuliert: {formatNumber(chessSimulations.length)} Partien.
