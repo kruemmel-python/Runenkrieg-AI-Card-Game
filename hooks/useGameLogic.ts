@@ -1,5 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Card, ElementType, GameHistoryEntry, HeroName, WeatherType, Winner } from '../types';
+import {
+    Card,
+    ElementType,
+    GameHistoryEntry,
+    HeroName,
+    WeatherType,
+    Winner,
+    ValueType,
+} from '../types';
 import {
     ELEMENTS,
     ABILITIES,
@@ -20,6 +28,49 @@ import {
 } from '../services/mechanicEngine';
 
 const getAbilityIndex = (value: Card['wert']) => ABILITIES.indexOf(value);
+
+let generatedCardCounter = 0;
+
+const createCardTemplate = (element: ElementType, ability: ValueType, idSuffix: string): Card => {
+    const elementIndex = ELEMENTS.indexOf(element);
+    const abilityIndex = ABILITIES.indexOf(ability);
+    const cardTypeConfig = CARD_TYPES[(elementIndex + abilityIndex) % CARD_TYPES.length];
+
+    return {
+        element,
+        wert: ability,
+        id: `${element}-${ability}-${idSuffix}`,
+        cardType: cardTypeConfig.name,
+        mechanics: ABILITY_MECHANICS[ability] || [],
+        lifespan: cardTypeConfig.defaultLifespan,
+        charges: cardTypeConfig.defaultCharges,
+    };
+};
+
+const generateReplacementCard = (owner: 'spieler' | 'gegner'): Card => {
+    const element = ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)];
+    const ability = ABILITIES[Math.floor(Math.random() * ABILITIES.length)];
+    return createCardTemplate(element, ability, `${owner}-generated-${generatedCardCounter++}`);
+};
+
+const refillHand = (
+    hand: Card[],
+    deck: Card[],
+    owner: 'spieler' | 'gegner'
+): { hand: Card[]; deck: Card[] } => {
+    const updatedHand = [...hand];
+    const updatedDeck = [...deck];
+
+    while (updatedHand.length < HAND_SIZE) {
+        if (updatedDeck.length > 0) {
+            updatedHand.push(updatedDeck.pop()!);
+        } else {
+            updatedHand.push(generateReplacementCard(owner));
+        }
+    }
+
+    return { hand: updatedHand, deck: updatedDeck };
+};
 
 const determineFusionElement = (first: Card, second: Card): ElementType => {
     const synergy = ELEMENT_SYNERGIES.find(
@@ -180,8 +231,14 @@ export const useGameLogic = () => {
 
             if (fusionSelection.card.id !== selectedCard.id) {
                 const fusedCard = createFusionCard(fusionSelection.card, selectedCard);
-                const updatedHand = playerHand.filter((_, index) => index !== cardIndex && index !== fusionSelection.index);
-                setPlayerHand([...updatedHand, fusedCard]);
+                const filteredHand = playerHand.filter((_, index) => index !== cardIndex && index !== fusionSelection.index);
+                const { hand: toppedHand, deck: remainingDeck } = refillHand(
+                    [...filteredHand, fusedCard],
+                    deck,
+                    'spieler'
+                );
+                setDeck(remainingDeck);
+                setPlayerHand(toppedHand);
                 setFusionSelection(null);
                 setStatusText(`Fusion erfolgreich: ${fusedCard.wert} (${fusedCard.element}) bereit zum Einsatz.`);
                 return;
@@ -367,15 +424,12 @@ export const useGameLogic = () => {
 
         setTimeout(() => {
             let tempDeck = [...deck];
-            let tempPlayerHand = [...remainingPlayerHand];
-            let tempAiHand = [...remainingAiHand];
+            const playerRefill = refillHand(remainingPlayerHand, tempDeck, 'spieler');
+            const aiRefill = refillHand(remainingAiHand, playerRefill.deck, 'gegner');
 
-            if (tempPlayerHand.length < HAND_SIZE && tempDeck.length > 0) {
-                tempPlayerHand.push(tempDeck.pop()!);
-            }
-            if (tempAiHand.length < HAND_SIZE && tempDeck.length > 0) {
-                tempAiHand.push(tempDeck.pop()!);
-            }
+            tempDeck = aiRefill.deck;
+            const tempPlayerHand = playerRefill.hand;
+            const tempAiHand = aiRefill.hand;
 
             setDeck(tempDeck);
             setPlayerHand(tempPlayerHand);
