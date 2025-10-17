@@ -820,22 +820,86 @@ const simulateFocusedRound = (
     };
 };
 
-const augmentWithFocusRounds = (numGames: number, data: RoundResult[]): void => {
+interface SimulationOptions {
+    chunkSize?: number;
+    yieldDelayMs?: number;
+    onProgress?: (completedGames: number, totalGames: number) => void;
+    signal?: AbortSignal;
+}
+
+const DEFAULT_SIMULATION_YIELD_DELAY_MS = 16;
+
+const waitFor = (ms: number) =>
+    new Promise<void>((resolve) => {
+        setTimeout(resolve, ms);
+    });
+
+const ensureSimulationNotAborted = (signal?: AbortSignal) => {
+    if (signal?.aborted) {
+        const reason = signal.reason ?? 'Simulation abgebrochen.';
+        throw reason instanceof Error ? reason : new Error(String(reason));
+    }
+};
+
+const yieldToBrowser = async (
+    step: number,
+    chunkSize: number,
+    delayMs: number,
+    signal?: AbortSignal
+) => {
+    ensureSimulationNotAborted(signal);
+    if (step % chunkSize === 0) {
+        await waitFor(delayMs);
+        ensureSimulationNotAborted(signal);
+    }
+};
+
+const augmentWithFocusRounds = async (
+    numGames: number,
+    data: RoundResult[],
+    controls: { chunkSize: number; yieldDelayMs: number; signal?: AbortSignal }
+): Promise<void> => {
     const baseGames = Math.max(1, numGames);
-    WEAK_CONTEXT_FOCUS.forEach((detail, index) => {
+    let produced = 0;
+    for (let index = 0; index < WEAK_CONTEXT_FOCUS.length; index++) {
+        const detail = WEAK_CONTEXT_FOCUS[index];
         const samples = Math.max(3, Math.round(baseGames * detail.sampleRate));
         for (let i = 0; i < samples; i++) {
+            ensureSimulationNotAborted(controls.signal);
             data.push(simulateFocusedRound(detail, index * 1000 + i));
+            produced += 1;
+            if (produced % controls.chunkSize === 0) {
+                await yieldToBrowser(produced, controls.chunkSize, controls.yieldDelayMs, controls.signal);
+            }
         }
-    });
+    }
+
+    if (produced % controls.chunkSize !== 0) {
+        await yieldToBrowser(produced, controls.chunkSize, controls.yieldDelayMs, controls.signal);
+    }
 };
 
 
-export function simulateGames(numGames: number): RoundResult[] {
+export async function simulateGames(
+    numGames: number,
+    options: SimulationOptions = {}
+): Promise<RoundResult[]> {
+    const {
+        chunkSize: requestedChunkSize,
+        yieldDelayMs = DEFAULT_SIMULATION_YIELD_DELAY_MS,
+        onProgress,
+        signal,
+    } = options;
+
+    const computedChunk = Math.ceil(Math.max(1, numGames) / 25);
+    const chunkSize = Math.max(1, requestedChunkSize ?? computedChunk);
+    const delay = Math.max(0, yieldDelayMs);
+
     const allData: RoundResult[] = [];
     const heroNames = Object.keys(HEROES) as HeroName[];
 
     for (let i = 0; i < numGames; i++) {
+        ensureSimulationNotAborted(signal);
         const deck = buildShuffledDeck();
         let playerHand = deck.slice(0, 4);
         let aiHand = deck.slice(4, 8);
@@ -970,9 +1034,21 @@ export function simulateGames(numGames: number): RoundResult[] {
             ensureHandSize(aiHand, talon, 'gegner');
 
             roundsPlayed += 1;
+            ensureSimulationNotAborted(signal);
         }
+
+        onProgress?.(i + 1, numGames);
+        await yieldToBrowser(i + 1, chunkSize, delay, signal);
     }
-    augmentWithFocusRounds(numGames, allData);
+
+    if (numGames === 0) {
+        onProgress?.(0, 0);
+    }
+    await augmentWithFocusRounds(numGames, allData, {
+        chunkSize,
+        yieldDelayMs: delay,
+        signal,
+    });
     return allData;
 }
 
