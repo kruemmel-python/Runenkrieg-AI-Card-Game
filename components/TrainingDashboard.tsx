@@ -1,8 +1,18 @@
 
 import React, { useState, useCallback } from 'react';
-import { RoundResult, SimulationAnalysis, TrainingAnalysis, ContextInsight } from '../types';
+import {
+  RoundResult,
+  SimulationAnalysis,
+  TrainingAnalysis,
+  ContextInsight,
+  ChessSimulationResult,
+  ChessTrainingSummary,
+  ChessAiInsight
+} from '../types';
 import { simulateGames, trainModel } from '../services/trainingService';
+import { simulateChessGames, summarizeChessSimulations, trainChessModel } from '../services/chessTrainingService';
 import { setTrainedModel, isAiTrained } from '../services/aiService';
+import { setTrainedChessModel, isChessAiTrained } from '../services/chessAiService';
 import Spinner from './Spinner';
 import CardGenerator from './CardGenerator';
 
@@ -79,7 +89,16 @@ const buildSimulationAnalysis = (data: RoundResult[]): SimulationAnalysis => {
   };
 };
 
-const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') => void }> = ({ onSwitchView }) => {
+type SimulationStatusTone = 'idle' | 'progress' | 'success' | 'error';
+
+const STATUS_TONE_CLASS: Record<SimulationStatusTone, string> = {
+  idle: 'text-slate-400',
+  progress: 'text-slate-300',
+  success: 'text-green-400',
+  error: 'text-red-400',
+};
+
+const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | 'chess') => void }> = ({ onSwitchView }) => {
   const [simulationCount, setSimulationCount] = useState<number>(1000);
   const [simulationData, setSimulationData] = useState<RoundResult[]>([]);
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
@@ -87,12 +106,26 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
   const [aiStatus, setAiStatus] = useState<string>(isAiTrained() ? 'KI ist trainiert und aktiv.' : 'KI nutzt zufällige Züge.');
   const [simulationAnalysis, setSimulationAnalysis] = useState<SimulationAnalysis | null>(null);
   const [trainingAnalysis, setTrainingAnalysis] = useState<TrainingAnalysis | null>(null);
+  const [simulationProgress, setSimulationProgress] = useState<number>(0);
+  const [simulationStatus, setSimulationStatus] = useState<string>('Bereit für Simulationen.');
+  const [simulationStatusTone, setSimulationStatusTone] = useState<SimulationStatusTone>('idle');
   const [onlyHighTokenDelta, setOnlyHighTokenDelta] = useState<boolean>(false);
   const [focusWeather, setFocusWeather] = useState<'all' | 'regenWind'>('all');
   const [onlyDragonDuels, setOnlyDragonDuels] = useState<boolean>(false);
+  const [chessSimulationCount, setChessSimulationCount] = useState<number>(200);
+  const [chessSimulations, setChessSimulations] = useState<ChessSimulationResult[]>([]);
+  const [chessSummary, setChessSummary] = useState<ChessTrainingSummary | null>(null);
+  const [chessInsights, setChessInsights] = useState<ChessAiInsight[]>([]);
+  const [isChessSimulating, setIsChessSimulating] = useState<boolean>(false);
+  const [chessSimulationProgress, setChessSimulationProgress] = useState<number>(0);
+  const [isChessTraining, setIsChessTraining] = useState<boolean>(false);
+  const [chessStatus, setChessStatus] = useState<string>(
+    isChessAiTrained() ? 'Schach-KI ist trainiert und aktiv.' : 'Schach-KI nutzt heuristische Heuristiken.'
+  );
 
   const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
   const formatNumber = (value: number) => value.toLocaleString('de-DE');
+  const formatSigned = (value: number, digits = 2) => `${value >= 0 ? '+' : ''}${value.toFixed(digits)}`;
   const formatTokenDelta = (delta: number) => (delta > 0 ? `+${delta}` : `${delta}`);
   const describeTokenAdvantage = (delta: number) => {
     if (delta > 0) return 'zugunsten des Spielers';
@@ -110,6 +143,47 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
     if (context.observations >= 100) badges.push({ label: 'stabil', color: 'bg-emerald-700' });
     return badges;
   };
+
+  const handleChessSimulation = useCallback(async () => {
+    setIsChessSimulating(true);
+    setChessSimulationProgress(0);
+    setChessStatus('Starte Schach-Simulation...');
+    try {
+      const results = await simulateChessGames(chessSimulationCount, {}, (completed, total) => {
+        setChessSimulationProgress(completed / total);
+        setChessStatus(`Simuliere Schachpartien (${completed}/${total})...`);
+      });
+      setChessSimulations(results);
+      setChessSummary(summarizeChessSimulations(results));
+      setChessStatus('Schach-Simulation abgeschlossen. Trainiere jetzt das Modell.');
+    } catch (error) {
+      console.error('Fehler bei der Schach-Simulation:', error);
+      setChessStatus('Fehler bei der Schach-Simulation.');
+      setChessSimulationProgress(0);
+    } finally {
+      setIsChessSimulating(false);
+    }
+  }, [chessSimulationCount]);
+
+  const handleChessTraining = useCallback(() => {
+    if (chessSimulations.length === 0) {
+      setChessStatus('Bitte führe zuerst Schach-Simulationen durch.');
+      return;
+    }
+    setIsChessTraining(true);
+    try {
+      const model = trainChessModel(chessSimulations);
+      setTrainedChessModel(model);
+      setChessSummary(model.summary);
+      setChessInsights(model.insights.slice(0, 12));
+      setChessStatus('Schach-KI erfolgreich trainiert und aktiviert.');
+    } catch (error) {
+      console.error('Fehler beim Schach-Training:', error);
+      setChessStatus('Fehler beim Training der Schach-KI.');
+    } finally {
+      setIsChessTraining(false);
+    }
+  }, [chessSimulations]);
 
   const matchesContextFilters = useCallback(
     (context: ContextInsight) => {
@@ -212,17 +286,46 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
   };
   
   const handleSimulate = useCallback(() => {
-    setIsSimulating(true);
-    setSimulationData([]);
-    setSimulationAnalysis(null);
-    setTrainingAnalysis(null);
-    // Use timeout to allow UI to update before blocking
-    setTimeout(() => {
-        const data = simulateGames(simulationCount);
+    const runSimulation = async () => {
+      setIsSimulating(true);
+      setSimulationProgress(0);
+      setSimulationStatus('Starte Simulation...');
+      setSimulationStatusTone('progress');
+      setSimulationData([]);
+      setSimulationAnalysis(null);
+      setTrainingAnalysis(null);
+
+      try {
+        const data = await simulateGames(simulationCount, {
+          onProgress: (completed, total) => {
+            const safeTotal = total > 0 ? total : 1;
+            setSimulationProgress(Math.min(1, completed / safeTotal));
+            setSimulationStatus(
+              total > 0
+                ? `Simuliere Spiele... ${completed}/${total}`
+                : 'Simuliere Spiele...'
+            );
+            setSimulationStatusTone('progress');
+          },
+        });
         setSimulationData(data);
         setSimulationAnalysis(buildSimulationAnalysis(data));
+        setSimulationProgress(1);
+        setSimulationStatus(
+          `Simulation abgeschlossen! ${data.length.toLocaleString('de-DE')} Runden aufgezeichnet.`
+        );
+        setSimulationStatusTone('success');
+      } catch (error) {
+        console.error(error);
+        setSimulationProgress(0);
+        setSimulationStatus('Simulation abgebrochen oder fehlgeschlagen.');
+        setSimulationStatusTone('error');
+      } finally {
         setIsSimulating(false);
-    }, 50);
+      }
+    };
+
+    void runSimulation();
   }, [simulationCount]);
 
   const handleTrain = useCallback(() => {
@@ -279,9 +382,30 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
                     {isSimulating && <Spinner />}
                     {isSimulating ? 'Simuliere...' : `Simuliere ${simulationCount} Spiele`}
                 </button>
-                {simulationData.length > 0 && !isSimulating &&
-                    <p className="mt-4 text-green-400 text-center">Simulation abgeschlossen! {simulationData.length} Runden aufgezeichnet.</p>
-                }
+                {isSimulating && (
+                  <div className="mt-4">
+                    <div className="flex justify-between text-xs text-slate-400 mb-1">
+                      <span>Fortschritt</span>
+                      <span>{Math.round(simulationProgress * 100)}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 transition-all duration-200"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, simulationProgress * 100))}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="mt-2 text-slate-300 text-sm text-center">{simulationStatus}</p>
+                  </div>
+                )}
+                {!isSimulating && simulationStatus && (
+                  <p
+                    className={`mt-4 text-center ${STATUS_TONE_CLASS[simulationStatusTone]}`}
+                  >
+                    {simulationStatus}
+                  </p>
+                )}
             </div>
             
             {/* Training Section */}
@@ -674,8 +798,252 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'game' | 'training') =>
             </div>
         )}
 
+        <div className="mt-12 bg-slate-800/80 border border-slate-700 rounded-lg p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h3 className="text-2xl font-bold text-cyan-200">Schach-Simulation &amp; Training</h3>
+                    <p className="text-sm text-slate-300 mt-1">
+                        Übertrage die Runenkrieg-Methodik auf Schachpartien: simuliere Spiele und trainiere die Gegenseite.
+                    </p>
+                </div>
+                <button
+                    onClick={() => onSwitchView('chess')}
+                    className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded-md transition"
+                >
+                    Zur Schach-Arena
+                </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm text-slate-300 mb-1" htmlFor="chess-simulation-count">
+                            Anzahl zu simulierender Partien
+                        </label>
+                        <input
+                            id="chess-simulation-count"
+                            type="number"
+                            min={10}
+                            max={5000}
+                            step={10}
+                            value={chessSimulationCount}
+                            onChange={(event) => setChessSimulationCount(Number(event.target.value))}
+                            className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                        <button
+                            onClick={handleChessSimulation}
+                            disabled={isChessSimulating}
+                            className={`px-4 py-2 rounded-md font-semibold transition ${
+                                isChessSimulating
+                                    ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                            }`}
+                        >
+                            {isChessSimulating
+                                ? `Simuliere... ${Math.round(chessSimulationProgress * 100)}%`
+                                : 'Schach-Simulation starten'}
+                        </button>
+                        <button
+                            onClick={handleChessTraining}
+                            disabled={isChessTraining || chessSimulations.length === 0}
+                            className={`px-4 py-2 rounded-md font-semibold transition ${
+                                isChessTraining || chessSimulations.length === 0
+                                    ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                    : 'bg-purple-600 hover:bg-purple-500 text-white'
+                            }`}
+                        >
+                            {isChessTraining ? 'Trainiere...' : 'Schach-KI trainieren'}
+                        </button>
+                    </div>
+                    <p className="text-sm text-slate-300">{chessStatus}</p>
+                    {isChessSimulating && (
+                        <div className="w-full h-2 bg-slate-700 rounded overflow-hidden">
+                            <div
+                                className="h-full bg-emerald-500 transition-all duration-200"
+                                style={{ width: `${Math.min(100, Math.round(chessSimulationProgress * 100))}%` }}
+                            />
+                        </div>
+                    )}
+                    {chessSimulations.length > 0 && (
+                        <p className="text-xs text-slate-400">
+                            Zuletzt simuliert: {formatNumber(chessSimulations.length)} Partien.
+                        </p>
+                    )}
+                </div>
+
+                <div className="bg-slate-900/70 border border-slate-700 rounded-lg p-4 text-sm text-slate-200">
+                    {chessSummary ? (
+                        <div className="space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <span className="font-semibold text-white">Partien:</span> {formatNumber(chessSummary.totalGames)}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-white">Weiß gewinnt:</span>{' '}
+                                    {chessSummary.totalGames > 0
+                                        ? formatPercent(chessSummary.whiteWins / chessSummary.totalGames)
+                                        : '0%'}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-white">Schwarz gewinnt:</span>{' '}
+                                    {chessSummary.totalGames > 0
+                                        ? formatPercent(chessSummary.blackWins / chessSummary.totalGames)
+                                        : '0%'}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-white">Remis:</span>{' '}
+                                    {chessSummary.totalGames > 0
+                                        ? formatPercent(chessSummary.draws / chessSummary.totalGames)
+                                        : '0%'}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-white">Ø Halbzüge:</span>{' '}
+                                    {chessSummary.averagePlies.toFixed(1)}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-white">Entscheidungen:</span>{' '}
+                                    {formatPercent(chessSummary.decisiveRate)}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-white">Entropie Weiß:</span>{' '}
+                                    {chessSummary.entropyWhite.toFixed(2)}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-white">Entropie Schwarz:</span>{' '}
+                                    {chessSummary.entropyBlack.toFixed(2)}
+                                </div>
+                                <div>
+                                    <span className="font-semibold text-white">Δ Entropie:</span>{' '}
+                                    {formatSigned(chessSummary.entropyDelta)}
+                                </div>
+                            </div>
+                            {chessSummary.topOpenings.length > 0 && (
+                                <div>
+                                    <p className="font-semibold text-white mt-3">Beliebte Eröffnungssequenzen</p>
+                                    <ul className="mt-2 space-y-1 text-xs text-slate-300">
+                                        {chessSummary.topOpenings.map((opening) => (
+                                            <li key={opening.sequence} className="border-b border-slate-700/60 pb-1">
+                                                <span className="text-purple-300">{opening.sequence}</span> · {formatNumber(opening.count)} Partien · Score{' '}
+                                                {formatPercent(opening.winRate)}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                            {chessSummary.resonanceMapping.length > 0 && (
+                                <div className="mt-4">
+                                    <p className="font-semibold text-white">Resonanz-Mapping</p>
+                                    <div className="mt-2 space-y-3">
+                                        {chessSummary.resonanceMapping.map((mapping) => (
+                                            <div
+                                                key={mapping.rune}
+                                                className="bg-slate-900/50 border border-slate-800 rounded-md p-3 text-xs text-slate-300"
+                                            >
+                                                <div className="flex items-center justify-between text-sm text-slate-200">
+                                                    <span className="font-semibold text-white">
+                                                        {mapping.rune} ↔ {mapping.chessPattern}
+                                                    </span>
+                                                    <span className="text-cyan-300">{Math.round(mapping.intensity * 100)}%</span>
+                                                </div>
+                                                <div className="mt-2 h-2 w-full overflow-hidden rounded bg-slate-800">
+                                                    <div
+                                                        className="h-full bg-cyan-500 transition-all duration-200"
+                                                        style={{ width: `${Math.min(100, Math.round(mapping.intensity * 100))}%` }}
+                                                    />
+                                                </div>
+                                                <p className="mt-2 text-[0.7rem] text-slate-400">
+                                                    Schwerpunkt:{' '}
+                                                    {mapping.dominantColor === 'balanced'
+                                                        ? 'ausgewogen'
+                                                        : mapping.dominantColor === 'white'
+                                                        ? 'Weiß dominiert'
+                                                        : 'Schwarz dominiert'}
+                                                </p>
+                                                <p className="mt-1 text-[0.7rem] text-slate-400">{mapping.commentary}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {chessSummary.learningBalance.length > 0 && (
+                                <div className="mt-5">
+                                    <p className="font-semibold text-white">Lernbalance zwischen Runenkrieg und Schach</p>
+                                    <div className="mt-2 space-y-3">
+                                        {chessSummary.learningBalance.map((item) => {
+                                            const totalScore = item.whiteScore + item.blackScore;
+                                            const whiteShare = totalScore > 0 ? (item.whiteScore / totalScore) * 100 : 50;
+                                            const blackShare = 100 - whiteShare;
+                                            const balancePercent = Math.round(item.balance * 100);
+                                            const balanceLabel =
+                                                balancePercent === 0
+                                                    ? 'ausgeglichen'
+                                                    : balancePercent > 0
+                                                    ? `+${balancePercent}% Weiß`
+                                                    : `${balancePercent}% Schwarz`;
+                                            return (
+                                                <div
+                                                    key={item.runeMechanic}
+                                                    className="bg-slate-900/50 border border-slate-800 rounded-md p-3 text-xs text-slate-200"
+                                                >
+                                                    <div className="flex items-center justify-between text-sm text-slate-200">
+                                                        <span className="font-semibold text-white">
+                                                            {item.runeMechanic} ↔ {item.chessConcept}
+                                                        </span>
+                                                        <span className="text-slate-400">{balanceLabel}</span>
+                                                    </div>
+                                                    <div className="mt-2 flex h-2 w-full overflow-hidden rounded bg-slate-800">
+                                                        <div
+                                                            className="h-full bg-amber-400"
+                                                            style={{ width: `${Math.max(0, Math.min(100, whiteShare))}%` }}
+                                                        />
+                                                        <div
+                                                            className="h-full bg-blue-500"
+                                                            style={{ width: `${Math.max(0, Math.min(100, blackShare))}%` }}
+                                                        />
+                                                    </div>
+                                                    <div className="mt-1 flex justify-between text-[0.65rem] text-slate-400">
+                                                        <span>Weiß {item.whiteScore.toFixed(2)}</span>
+                                                        <span>Schwarz {item.blackScore.toFixed(2)}</span>
+                                                    </div>
+                                                    <p className="mt-1 text-[0.7rem] text-slate-400">{item.description}</p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <p className="text-slate-400">Noch keine Schach-Simulationen durchgeführt.</p>
+                    )}
+                </div>
+            </div>
+
+            {chessInsights.length > 0 && (
+                <div className="mt-6">
+                    <h4 className="text-lg font-semibold text-white mb-3">Top KI-Empfehlungen</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {chessInsights.slice(0, 6).map((insight, index) => (
+                            <div key={`${insight.fen}-${insight.recommendedMove}-${index}`} className="bg-slate-900/70 border border-slate-700 rounded-lg p-4 text-sm text-slate-200">
+                                <p className="font-semibold text-white">Zug {insight.recommendedMove}</p>
+                                <p className="text-xs text-slate-400 break-all mt-1">{insight.fen}</p>
+                                <p className="mt-2">
+                                    Erwarteter Score:{' '}
+                                    <span className="text-green-400">{formatPercent(insight.expectedScore)}</span> · Vertrauen{' '}
+                                    <span className="text-cyan-300">{formatPercent(insight.confidence)}</span>
+                                </p>
+                                <p className="text-xs text-slate-400">Beobachtungen: {formatNumber(insight.sampleSize)}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+
         <div className="mt-8 text-center">
-            <button onClick={() => onSwitchView('game')} className="bg-slate-600 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-lg text-lg">
+            <button onClick={() => onSwitchView('card')} className="bg-slate-600 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-lg text-lg">
                 Zurück zum Spiel
             </button>
         </div>
