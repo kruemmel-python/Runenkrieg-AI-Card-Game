@@ -158,3 +158,75 @@ export interface GameHistoryEntry {
   playerTokens: number;
   aiTokens: number;
 }
+
+export type ChessColor = 'white' | 'black';
+export type ChessPieceType = 'p' | 'n' | 'b' | 'r' | 'q' | 'k';
+
+export interface ChessPiece {
+  type: ChessPieceType;
+  color: ChessColor;
+}
+
+export interface ChessMove {
+  from: string;
+  to: string;
+  piece: ChessPieceType;
+  color: ChessColor;
+  captured?: ChessPieceType;
+  promotion?: ChessPieceType;
+  isCapture: boolean;
+  isPromotion: boolean;
+  isEnPassant: boolean;
+  isCastleKingSide: boolean;
+  isCastleQueenSide: boolean;
+  resultsInCheck?: boolean;
+  san?: string;
+}
+
+export type ChessOutcome = ChessColor | 'draw';
+
+export interface ChessSimulationMoveRecord {
+  fen: string;
+  move: string;
+  color: ChessColor;
+}
+
+export interface ChessSimulationResult {
+  moves: ChessSimulationMoveRecord[];
+  winner: ChessOutcome;
+  reason: 'checkmate' | 'stalemate' | 'fiftyMove' | 'maxPlies' | 'resignation';
+  plies: number;
+  openingSequence: string;
+}
+
+export interface ChessTrainingSummary {
+  totalGames: number;
+  whiteWins: number;
+  blackWins: number;
+  draws: number;
+  averagePlies: number;
+  decisiveRate: number;
+  topOpenings: { sequence: string; count: number; winRate: number }[];
+}
+
+export interface ChessAiInsight {
+  fen: string;
+  recommendedMove: string;
+  confidence: number;
+  expectedScore: number;
+  sampleSize: number;
+}
+
+export interface ChessMoveSuggestion {
+  move: ChessMove;
+  confidence: number;
+  expectedScore: number;
+  sampleSize: number;
+  rationale: string;
+}
+
+export interface TrainedChessModel {
+  chooseMove: (fen: string, legalMoves: ChessMove[], color: ChessColor) => ChessMoveSuggestion;
+  summary: ChessTrainingSummary;
+  insights: ChessAiInsight[];
+}

@@ -6,7 +6,9 @@ import { HEROES } from '../constants';
 import { generateGameStory } from '../services/geminiService';
 import Spinner from './Spinner';
 
-const GameBoard: React.FC<{ onSwitchView: (view: 'game' | 'training') => void }> = ({ onSwitchView }) => {
+type View = 'card' | 'training' | 'chess';
+
+const GameBoard: React.FC<{ onSwitchView: (view: View) => void }> = ({ onSwitchView }) => {
     const {
         playerHand,
         aiHand,
@@ -181,8 +183,17 @@ const GameBoard: React.FC<{ onSwitchView: (view: 'game' | 'training') => void }>
                             className="bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                     )}
-                    <button onClick={() => onSwitchView('training')} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded transition-transform transform hover:scale-105">
+                    <button
+                        onClick={() => onSwitchView('training')}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded transition-transform transform hover:scale-105"
+                    >
                         KI Training
+                    </button>
+                    <button
+                        onClick={() => onSwitchView('chess')}
+                        className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded transition-transform transform hover:scale-105"
+                    >
+                        Zur Schach-Arena
                     </button>
                 </div>
             </div>
