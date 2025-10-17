@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Runenkrieg & Schach – Simulation, Training und Spielverhalten (Bio‑inspirierte Resonanzarchitektur)</title>
+  <meta name="description" content="Ausführliche Dokumentation der KI-Systeme und Lernmodelle für Runenkrieg (Kartenspiel) und Schach, inkl. Simulation, Training, Analyse-Dashboard und Epischer Barde." />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #10161d;
+      --panel-2: #0f141a;
+      --text: #e6edf3;
+      --muted: #9fb0c6;
+      --accent: #7cc6ff;
+      --accent-2: #a5ffd6;
+      --code-bg: #0a0f14;
+      --kbd-bg: #0d141c;
+      --border: #1b2633;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+    }
+    html, body {
+      margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+      line-height: 1.6; font-size: 16px;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre, kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    kbd { background: var(--kbd-bg); border: 1px solid var(--border); padding: 2px 6px; border-radius: 6px; color: var(--text); }
+    .layout { display: grid; grid-template-columns: 280px 1fr; gap: 0; min-height: 100vh; }
+    nav {
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border-right: 1px solid var(--border);
+      padding: 24px 18px; position: sticky; top: 0; align-self: start; height: 100vh; overflow: auto;
+    }
+    nav h1 { font-size: 18px; margin: 0 0 16px; color: var(--accent); }
+    nav .toc { list-style: none; margin: 0; padding: 0; }
+    nav .toc li { margin: 6px 0; }
+    nav .toc li a { color: var(--muted); }
+    nav .toc li a:hover { color: var(--text); }
+    main { padding: 32px; }
+    header.hero {
+      background: radial-gradient(1200px 600px at 20% -20%, rgba(124,198,255,0.15), transparent 60%),
+                  radial-gradient(1000px 500px at 110% 10%, rgba(165,255,214,0.12), transparent 60%);
+      border: 1px solid var(--border);
+      padding: 28px; border-radius: 16px; margin-bottom: 24px;
+    }
+    header.hero h2 { margin-top: 0; font-size: 28px; }
+    .meta { color: var(--muted); font-size: 14px; }
+    section { background: var(--panel); border: 1px solid var(--border); padding: 20px; border-radius: 14px; margin: 18px 0; }
+    h2 { margin-top: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+    th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+    thead th { background: #0f1a24; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 12px; border: 1px solid var(--border); background: #0e1319; color: var(--muted); }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      padding: 12px 14px; border-radius: 12px; overflow: auto;
+    }
+    .math { font-family: "Cambria Math", "STIX Two Math", serif; background: #0f151c; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--border); }
+    .small { font-size: 14px; color: var(--muted); }
+    footer { color: var(--muted); font-size: 14px; text-align: center; padding: 32px 0; }
+  </style>
+
+  <!-- Optional math & diagrams via CDN (safe to remove if offline) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.mermaid) mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    });
+  </script>
+</head>
+<body>
+  <div class="layout">
+    <nav>
+      <h1>Inhalt</h1>
+      <ol class="toc">
+        <li><a href="#abstract">Abstract</a></li>
+        <li><a href="#teil-i">Teil I – Runenkrieg KI (Karten-Codex)</a></li>
+        <li><a href="#teil-ii">Teil II – Schach KI (Taktische Arena)</a></li>
+        <li><a href="#teil-iii">Teil III – Gemini-Integration (Epischer Barde)</a></li>
+        <li><a href="#teil-iv-architektur-details">Teil IV – Architektur & Domänen-Transfer</a></li>
+      </ol>
+      <p class="small" style="margin-top:18px">
+        Version: <strong>1.0</strong><br/>
+        Lizenz: <a href="#">MIT</a>
+      </p>
+    </nav>
+
+    <main>
+      <header class="hero">
+        <h2>Runenkrieg &amp; Schach – Simulation, Training und Spielverhalten<br/><span class="small">Bio‑inspirierte Resonanzarchitektur</span></h2>
+        <p class="meta">
+          Diese Dokumentation beschreibt zwei KI‑Systeme: (1) das kontextbasierte Lernmodell für das Kartenspiel <em>Runenkrieg</em> (Codex‑Simulation) und (2) die übertragene, kontextuelle Lernlogik für <em>Schach</em> (Arena‑Simulation) – inklusive Metriken, Analyse‑Dashboard und narrativer Integration.
+        </p>
+      </header>
+
+      <section id="abstract">
+        <h2>Abstract</h2>
+        <p>
+          Wir präsentieren eine <strong>bio‑inspirierte Resonanzarchitektur</strong> für spielerische Entscheidungssysteme, die ohne Gradientenverfahren robuste,
+          kontextbasierte Policies lernt. Die Architektur aggregiert Selbst‑Spiel‑Simulationen zu einem <em>Kontext‑Wörterbuch</em> und wählt Aktionen anhand
+          der <strong>Wilson‑Untergrenze</strong> (95&nbsp;%) als primärem Qualitätsmaß. Ein temperaturgesteuertes <em>Soft‑Winner‑Take‑All</em> (Soft‑WTA) sichert Exploration
+          in unsicheren Kontexten; <em>Entscheidungs‑Entropie</em> dient als Überanpassungswächter. Wir zeigen die <strong>Domänenübertragbarkeit</strong> anhand zweier sehr
+          unterschiedlicher Spiele – dem thematischen Kartenspiel <em>Runenkrieg</em> und <em>Schach</em> – und demonstrieren Trainings↔Match‑Kohärenz (~50/50 Siegquote),
+          sowie eine optionale narrative Schicht („Epischer Barde“) über Google Gemini.
+        </p>
+      </section>
+
+      <section id="teil-i">
+        <h2>Teil I: Runenkrieg KI (Das Karten‑Codex)</h2>
+        <p>Die Runenkrieg‑KI ist ein <strong>kontextbasiertes Entscheidungsmodell</strong>, trainiert durch Selbst‑Spiel‑Simulationen. Ziel ist nicht eine exakte Minimax‑Suche, sondern die <em>zuverlässigste</em> Antwortkarte pro Spielsituation (Kontext) zu finden.</p>
+
+        <h3>A. Was? – Strategie & Ziel</h3>
+        <table>
+          <thead><tr><th>Aspekt</th><th>Beschreibung</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Ziel</strong></td>
+              <td>Maximierung der <em>Wilson‑Untergrenze</em> (95&nbsp;%) der Siegquote pro Kontext: robuste Qualität statt bloßer Rohquote.</td>
+            </tr>
+            <tr>
+              <td><strong>Spiel‑Verhalten (untrainiert)</strong></td>
+              <td>Gewichtete Heuristik <code>evaluateCard</code> (z.&nbsp;B. Basisstärke, Wetter, Mechaniken, Synergien, Konter, Heldenaffinität, Risiko/Druck).</td>
+            </tr>
+            <tr>
+              <td><strong>Spiel‑Verhalten (trainiert)</strong></td>
+              <td>Aktion mit maximaler <em>angepasster Wilson‑Untergrenze</em> aus <code>trainedModel</code>; bei Unsicherheit: erhöhte Temperatur (Soft‑WTA) → Exploration.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>B. Wie? – Lernmodell (Simulation & Training)</h3>
+        <h4>1. Kontext‑Key</h4>
+        <p><strong>Key‑Schema:</strong> <code>Spielerkarte|Wetter|HeldenMatchup|delta:±k</code> (Clamp auf ±5).</p>
+
+        <h4>2. Heuristik (Simulation & untrainiertes Spiel)</h4>
+        <pre><code>Score = Σ(Basisstärke·1.1) + Σ(Wetter·1.2) + Σ(Mechanik·1.15) + Σ(Synergie) + Σ(Konter) + Σ(Heldenaffinität·1.25) + Σ(Risiko/Druck)
+        </code></pre>
+        <ul>
+          <li><strong>Element‑Hierarchie</strong> (Konter‑Score), <strong>Wetter‑Effekte</strong>, <strong>Mechaniken</strong> (Fusion, Resonanz, …), <strong>Heldenaffinitäten</strong>.</li>
+          <li><strong>Fusion</strong>: Fusionsoptionen werden generiert und bewertet (<code>generateAiPlayOptions</code>).</li>
+        </ul>
+
+        <h4>3. Training (Kontext‑Wörterbuch)</h4>
+        <ol>
+          <li>Aggregation aller <code>RoundResult</code> nach <em>Kontext‑Key</em>.</li>
+          <li>Statistik je KI‑Aktion (<code>aiCardKey</code>): Zählung von <em>Gesamt</em> und <em>Siegen</em>.</li>
+          <li><strong>Wilson‑Untergrenze</strong> als Kernmetrik (robust bei kleinem n).</li>
+          <li>Entscheidungsmodell: Karte mit maximaler <em>angepasster</em> Wilson‑Untergrenze (inkl. <em>weaknessPenalty</em>, <em>isPreferred</em>).</li>
+        </ol>
+
+        <h4>4. Adaptive Exploration</h4>
+        <ul>
+          <li><strong>Stabile Kontexte</strong>: Deterministische Wahl (kleine Temperatur).</li>
+          <li><strong>Unsichere Kontexte</strong>: Temperatur ↑, Top‑2‑Mix (Erkundung). <span class="badge">Entropie‑Alert bei H &lt; 0.3</span></li>
+        </ul>
+
+        <h3>C. Warum? – Analyse im Training‑Dashboard</h3>
+        <ul>
+          <li><strong>Gut abgedeckte Kontexte:</strong> Wilson‑Untergrenze ≥ 0.6 und n ≥ 50.</li>
+          <li><strong>Evidenzscore:</strong> kombiniert Quote und Intervallbreite.</li>
+          <li><strong>Token‑Delta Abdeckung</strong> (Vor‑/Nachteil‑Robustheit), <strong>Simulation‑Planner</strong> (Wellen 25/50/100), <strong>Mechanik‑Wirksamkeit</strong> (normierter Lift).</li>
+        </ul>
+      </section>
+
+      <section id="teil-ii">
+        <h2>Teil II: Schach KI (Die Taktische Arena)</h2>
+        <p>Die Schach‑KI überträgt das Runenkrieg‑Prinzip auf <strong>FEN‑Kontexte</strong> und lernt <em>Position → bester Zug</em> via Simulation & Aggregation.</p>
+
+        <h3>A. Was? – Strategie & Ziel</h3>
+        <table>
+          <thead><tr><th>Aspekt</th><th>Beschreibung</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Ziel</strong></td>
+              <td>Wähle den Zug mit maximalem <em>Expected&nbsp;Score</em> und hoher <em>Confidence</em> (Stichprobe/Intervallbreite).</td>
+            </tr>
+            <tr>
+              <td><strong>Heuristik (Simulation)</strong></td>
+              <td><code>evaluateMoveHeuristic</code>: Material, Promotion, Königssicherheit (Rochade), Zentrumskontrolle, Entwicklung.</td>
+            </tr>
+            <tr>
+              <td><strong>Kontext‑Key</strong></td>
+              <td><em>Strenger FEN</em> (komplett) und <em>Lockerer FEN</em> (Brett + Zugrecht) für dünn besetzte Kontexte.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>B. Wie? – Lernmodell & Domänen‑Transfer</h3>
+        <ol>
+          <li><strong>Simulation:</strong> <code>SimpleChess</code> spielt Selbstpartien, Züge via Soft‑WTA (mit Randomness).</li>
+          <li><strong>Training:</strong> Aggregation aller (FEN, Zug) → <em>Expected&nbsp;Score</em> je Zug, Auswahl nach Qualität + Confidence.</li>
+          <li><strong>Resonanz‑Mapping:</strong> Analogien Runenkrieg ↔ Schach (Überladung ↔ Opfer, Resonanz ↔ Synergien, Wetterbindung ↔ Struktur).</li>
+        </ol>
+
+        <h3>C. Warum? – Analyse im Dashboard</h3>
+        <ul>
+          <li><strong>Top‑Empfehlungen</strong> zeigen <em>Expected&nbsp;Score</em> + Confidence.</li>
+          <li><strong>Entropie</strong>: Vielfaltserhalt pro Position.</li>
+          <li><strong>Resonanz‑Mapping</strong>: Intensität & Dominanz der Mechanik‑Analoga je Farbe.</li>
+        </ul>
+      </section>
+
+      <section id="teil-iii">
+        <h2>Teil III: Gemini‑Integration (Der Epische Barde)</h2>
+        <h3>A. Was?</h3>
+        <p>Nach einer Runenkrieg‑Partie erzeugt Google Gemini eine kurze, epische Erzählung aus Barden‑Perspektive.</p>
+        <h3>B. Wie? – Prozess</h3>
+        <ol>
+          <li><strong>Eingabe:</strong> <code>gameHistory</code> (Runden, Karten, Token, Gewinner).</li>
+          <li><strong>Modell:</strong> <code>gemini-2.5-flash</code>.</li>
+          <li><strong>Prompt:</strong> Rollen‑Instruktion „Epischer Barde“, Fakten aus dem Spiel, direkte Ansprache.</li>
+          <li><strong>Ausgabe:</strong> Story auf dem „Spiel Vorbei!“ Bildschirm.</li>
+        </ol>
+        <h3>C. Warum?</h3>
+        <p>Die narrative Schicht übersetzt nüchterne Statistik in eine <em>emotionale Spielerfahrung</em> und schafft Kontext für Entscheidungen.</p>
+      </section>
+
+      <section id="teil-iv-architektur-details">
+        <h2>Teil IV: Architektur‑Details &amp; Domänen‑Transfer</h2>
+
+        <h3>1. Kernmetriken</h3>
+        <ul>
+          <li><strong>Wilson‑Untergrenze (95&nbsp;%)</strong>: robuste, stichprobengewichtete Güte.</li>
+          <li><strong>Expected&nbsp;Score (Schach)</strong>: <span class="math">P(Sieg) + 0{,}5·P(Remis)</span>.</li>
+          <li><strong>Entscheidungs‑Entropie</strong>: <span class="math">H = -\sum p(a)\log_2 p(a)</span>, Alert bei <code>H &lt; 0.3</code>.</li>
+          <li><strong>Soft‑WTA</strong>: <span class="math">p(a) \propto \exp(\mathrm{Score}(a)/\tau)</span>.</li>
+        </ul>
+
+        <h3>2. Trainings‑Pseudocode (vereinheitlicht)</h3>
+        <pre><code>// Simulation
+for episode in 1..N:
+  state = initial_state()
+  while not terminal(state):
+    actions = enumerate_actions(state)
+    score[a] = heuristic(state, a)     // Runenkrieg: evaluateCard; Schach: evaluateMoveHeuristic
+    p[a] = softmax(score[a] / τ)       // Soft-WTA
+    a = sample(p)
+    state' = step(state, a)
+    log(state, a, outcome_partial)
+
+// Aggregation
+group by context_key(state):
+  for each action a:
+    wins[a], draws[a], losses[a], n[a]
+
+// Metriken
+for context:
+  for action a:
+    expected = (wins[a] + 0.5*draws[a]) / n[a]      // Schach
+    wilson_lo = wilson_lower_95(wins[a], n[a])      // Runenkrieg & Schach
+    confidence = f(n[a], interval_width)
+    adjusted = adjust(wilson_lo, weaknessPenalty, isPreferred)
+
+// Vorhersage
+predict(context) = argmax_a adjusted(context, a)
+
+// Exploration
+if H(context) &lt; 0.3 or wilson_lo &lt; 0.6:
+  τ = τ * 1.25; enable_top2_mix()
+</code></pre>
+
+        <h3>3. Resonanz‑Mapping</h3>
+        <table>
+          <thead><tr><th>Runenkrieg‑Mechanik</th><th>Schach‑Konzept</th><th>Messung</th></tr></thead>
+          <tbody>
+            <tr><td>Überladung</td><td>Opfer/Initiative</td><td>Opferfrequenz & Folgekraft</td></tr>
+            <tr><td>Elementarresonanz</td><td>Synergien</td><td>Kontroll-/Mobilitätsgewinn nach Zug</td></tr>
+            <tr><td>Wetterbindung</td><td>Brettstruktur</td><td>Strukturprägende Bauernzüge</td></tr>
+          </tbody>
+        </table>
+
+        <h3>4. Prozessdiagramm</h3>
+        <div class="mermaid">
+          flowchart TD
+            A[Selbst-Spiel Simulation] --> B[Kontextbildung]
+            B --> C[Soft-WTA: Zug/Karte wählen]
+            C --> D[Logging (Kontext, Aktion, Ergebnis)]
+            D --> E[Aggregation je Kontext/Aktion]
+            E --> F[Wilson-Untergrenze / Expected Score]
+            F --> G[Entscheidungsmodell (predict)]
+            G -->|unsicher / H&lt;0.3| H[Exploration: τ↑, Top-2-Mix]
+            G -->|stabil| I[Exploit]
+            H --> A
+            I --> A
+        </div>
+
+        <h3>5. Glossar</h3>
+        <ul>
+          <li><strong>Kontext‑Key:</strong> Identifiziert Spielsituationen (Runenkrieg) bzw. Positionen (Schach/FEN).</li>
+          <li><strong>Lift:</strong> Differenz zur Baseline‑Quote desselben Kontexts.</li>
+          <li><strong>Evidenzscore:</strong> Kombination aus Quote und Intervallbreite.</li>
+        </ul>
+      </section>
+
+      <footer>
+        © 2025 Runenkrieg &amp; Schach – Bio‑inspirierte Resonanzarchitektur. Dokumentation für Forschung, Lehre & Spielentwicklung.
+      </footer>
+    </main>
+  </div>
+</body>
+</html>
