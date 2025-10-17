@@ -17,6 +17,8 @@ import {
     MechanicEffectivenessInsight,
     ResamplingRecommendation,
     ValueType,
+    SerializedRunenkriegModel,
+    RunenkriegContextMetadata,
 } from '../types';
 import {
     ELEMENTS,
@@ -558,18 +560,7 @@ const FOCUS_CONTEXT_INDEX = WEAK_CONTEXT_FOCUS.reduce<
     return map;
 }, new Map());
 
-type ContextMetadata = {
-    bestCardKey: string;
-    observations: number;
-    wilsonLower: number;
-    wilsonUpper: number;
-    entropy: number;
-    baselineWinRate: number;
-    bestWinRate: number;
-    consolidationStage: 'none' | 'provisional' | 'stable';
-    weaknessPenalty: number;
-    preferredResponses?: string[];
-};
+type ContextMetadata = RunenkriegContextMetadata;
 
 function wilsonInterval(wins: number, trials: number, z: number = WILSON_Z) {
     if (trials === 0) {
@@ -1600,6 +1591,25 @@ export async function trainModel(
         decisionEntropyAlerts: entropyAlerts.slice(0, 10),
     };
 
+    const trainedModel = buildRunenkriegModel(modelData, contextMetadata, analysis);
+
+    const finalMessage = preferGpu
+        ? gpuUtilized
+            ? 'Training abgeschlossen. GPU-Beschleunigung aktiv.'
+            : 'Training abgeschlossen. GPU nicht verfügbar – CPU genutzt.'
+        : 'Training abgeschlossen.';
+    onProgress?.({ phase: 'finalizing', progress: 1, message: finalMessage });
+
+    return trainedModel;
+}
+
+const RUNENKRIEG_MODEL_VERSION = 1;
+
+function buildRunenkriegModel(
+    modelData: Map<string, Map<string, { wins: number; total: number }>>,
+    contextMetadata: Map<string, ContextMetadata>,
+    analysis: TrainingAnalysis
+): TrainedModel {
     const predict = (playerCard: Card, aiHand: Card[], gameState: any): Card => {
         const tokenDelta = (gameState.playerTokens ?? 0) - (gameState.aiTokens ?? 0);
         const clampedDelta = clampTokenDelta(tokenDelta);
@@ -1716,12 +1726,72 @@ export async function trainModel(
         return topCandidate.card;
     };
 
-    const finalMessage = preferGpu
-        ? gpuUtilized
-            ? 'Training abgeschlossen. GPU-Beschleunigung aktiv.'
-            : 'Training abgeschlossen. GPU nicht verfügbar – CPU genutzt.'
-        : 'Training abgeschlossen.';
-    onProgress?.({ phase: 'finalizing', progress: 1, message: finalMessage });
+    const serialize = (): SerializedRunenkriegModel => {
+        const contexts: SerializedRunenkriegModel['contexts'] = {};
+        modelData.forEach((aiCardMap, contextKey) => {
+            const aiCards: Record<string, { wins: number; total: number }> = {};
+            aiCardMap.forEach((stats, cardKey) => {
+                aiCards[cardKey] = { wins: stats.wins, total: stats.total };
+            });
+            const metadata = contextMetadata.get(contextKey);
+            contexts[contextKey] = {
+                aiCards,
+                ...(metadata
+                    ? {
+                          metadata: {
+                              ...metadata,
+                              preferredResponses: metadata.preferredResponses
+                                  ? [...metadata.preferredResponses]
+                                  : undefined,
+                          },
+                      }
+                    : {}),
+            };
+        });
 
-    return { predict, analysis };
+        return {
+            version: RUNENKRIEG_MODEL_VERSION,
+            generatedAt: new Date().toISOString(),
+            contexts,
+            analysis: JSON.parse(JSON.stringify(analysis)) as TrainingAnalysis,
+        };
+    };
+
+    return { predict, analysis, serialize };
+}
+
+export function hydrateTrainedModel(serialized: SerializedRunenkriegModel): TrainedModel {
+    if (!serialized || typeof serialized !== 'object') {
+        throw new Error('Ungültiges Runenkrieg-Modellformat.');
+    }
+
+    if (serialized.version !== RUNENKRIEG_MODEL_VERSION) {
+        console.warn(
+            `Geladenes Runenkrieg-Modell hat Version ${serialized.version}, erwartet ${RUNENKRIEG_MODEL_VERSION}.`
+        );
+    }
+
+    const modelData = new Map<string, Map<string, { wins: number; total: number }>>();
+    const metadataMap = new Map<string, ContextMetadata>();
+
+    const entries = Object.entries(serialized.contexts ?? {});
+    for (const [contextKey, contextValue] of entries) {
+        const aiMap = new Map<string, { wins: number; total: number }>();
+        const cardEntries = Object.entries(contextValue?.aiCards ?? {});
+        for (const [cardKey, stats] of cardEntries) {
+            aiMap.set(cardKey, { wins: stats.wins, total: stats.total });
+        }
+        modelData.set(contextKey, aiMap);
+
+        if (contextValue?.metadata) {
+            metadataMap.set(contextKey, {
+                ...contextValue.metadata,
+                preferredResponses: contextValue.metadata.preferredResponses
+                    ? [...contextValue.metadata.preferredResponses]
+                    : undefined,
+            });
+        }
+    }
+
+    return buildRunenkriegModel(modelData, metadataMap, serialized.analysis);
 }

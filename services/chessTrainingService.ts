@@ -11,6 +11,8 @@ import {
     ChessLearningBalanceItem,
     ChessDominantColor,
     TrainingRunOptions,
+    SerializedChessModel,
+    SerializedChessMoveStats,
 } from '../types';
 import { SimpleChess, getPieceValue } from './chessEngine';
 import { computeChessMoveStatsGpu } from './gpuAcceleration';
@@ -756,6 +758,26 @@ export const trainChessModel = async (
 
     insights.sort((a, b) => b.expectedScore - a.expectedScore || b.confidence - a.confidence);
 
+    const topInsights = insights.slice(0, 25);
+    const trainedModel = buildTrainedChessModel(positions, summary, topInsights);
+
+    const finalMessage = preferGpu
+        ? gpuUtilized
+            ? 'Schachtraining abgeschlossen. GPU-Beschleunigung aktiv.'
+            : 'Schachtraining abgeschlossen. GPU nicht verfügbar – CPU genutzt.'
+        : 'Schachtraining abgeschlossen.';
+    onProgress?.({ phase: 'finalizing', progress: 1, message: finalMessage });
+
+    return trainedModel;
+};
+
+const CHESS_MODEL_VERSION = 1;
+
+const buildTrainedChessModel = (
+    positions: Map<string, PositionStats>,
+    summary: ChessTrainingSummary,
+    insights: ChessAiInsight[]
+): TrainedChessModel => {
     const chooseMove = (
         fen: string,
         legalMoves: ChessMove[],
@@ -781,9 +803,12 @@ export const trainChessModel = async (
                     sampleSize: moveStats.total,
                     rationale,
                 };
-                if (!bestSuggestion || expected > bestSuggestion.expectedScore || (
-                    Math.abs(expected - bestSuggestion.expectedScore) < 0.01 && confidence > bestSuggestion.confidence
-                )) {
+                if (
+                    !bestSuggestion ||
+                    expected > bestSuggestion.expectedScore ||
+                    (Math.abs(expected - bestSuggestion.expectedScore) < 0.01 &&
+                        confidence > bestSuggestion.confidence)
+                ) {
                     bestSuggestion = suggestion;
                 }
             }
@@ -793,7 +818,6 @@ export const trainChessModel = async (
             return bestSuggestion;
         }
 
-        // Fallback: choose heuristic move when no data
         const tempGame = SimpleChess.fromFen(fen);
         const fallbackMoves = legalMoves.map((move) => ({
             move,
@@ -810,16 +834,85 @@ export const trainChessModel = async (
         };
     };
 
-    const finalMessage = preferGpu
-        ? gpuUtilized
-            ? 'Schachtraining abgeschlossen. GPU-Beschleunigung aktiv.'
-            : 'Schachtraining abgeschlossen. GPU nicht verfügbar – CPU genutzt.'
-        : 'Schachtraining abgeschlossen.';
-    onProgress?.({ phase: 'finalizing', progress: 1, message: finalMessage });
+    const serialize = (): SerializedChessModel => {
+        const positionsSnapshot: SerializedChessModel['positions'] = {};
+        positions.forEach((stats, key) => {
+            const moves: Record<string, SerializedChessMoveStats> = {};
+            stats.moves.forEach((moveStats, moveKey) => {
+                moves[moveKey] = {
+                    total: moveStats.total,
+                    wins: moveStats.wins,
+                    losses: moveStats.losses,
+                    draws: moveStats.draws,
+                };
+            });
+            positionsSnapshot[key] = {
+                total: stats.total,
+                wins: stats.wins,
+                losses: stats.losses,
+                draws: stats.draws,
+                moves,
+            };
+        });
 
-    return {
-        chooseMove,
-        summary,
-        insights: insights.slice(0, 25),
+        return {
+            version: CHESS_MODEL_VERSION,
+            generatedAt: new Date().toISOString(),
+            positions: positionsSnapshot,
+            summary: JSON.parse(JSON.stringify(summary)) as ChessTrainingSummary,
+            insights: JSON.parse(JSON.stringify(insights)) as ChessAiInsight[],
+        };
     };
+
+    return { chooseMove, summary, insights, serialize };
+};
+
+export const hydrateChessModel = (serialized: SerializedChessModel): TrainedChessModel => {
+    if (!serialized || typeof serialized !== 'object') {
+        throw new Error('Ungültiges Schachmodell-Format.');
+    }
+
+    if (serialized.version !== CHESS_MODEL_VERSION) {
+        console.warn(
+            `Geladenes Schachmodell hat Version ${serialized.version}, erwartet ${CHESS_MODEL_VERSION}.`
+        );
+    }
+
+    const positions = new Map<string, PositionStats>();
+    const positionEntries = Object.entries(serialized.positions ?? {});
+    for (const [key, stats] of positionEntries) {
+        const moves = new Map<string, PositionMoveStats>();
+        const moveEntries = Object.entries(stats.moves ?? {});
+        for (const [moveKey, moveStats] of moveEntries) {
+            moves.set(moveKey, {
+                total: moveStats.total,
+                wins: moveStats.wins,
+                losses: moveStats.losses,
+                draws: moveStats.draws,
+            });
+        }
+        positions.set(key, {
+            total: stats.total,
+            wins: stats.wins,
+            losses: stats.losses,
+            draws: stats.draws,
+            moves,
+        });
+    }
+
+    const insights = serialized.insights ?? [];
+    const summary = serialized.summary ?? {
+        totalGames: 0,
+        whiteWins: 0,
+        blackWins: 0,
+        draws: 0,
+        averageGameLength: 0,
+        entropyWhite: 0,
+        entropyBlack: 0,
+        entropyDelta: 0,
+        resonanceMapping: createDefaultResonanceMapping(),
+        learningBalance: createDefaultLearningBalance(),
+    };
+
+    return buildTrainedChessModel(positions, summary, insights);
 };

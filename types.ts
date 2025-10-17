@@ -155,9 +155,37 @@ export interface TrainingAnalysis {
   decisionEntropyAlerts: ContextInsight[];
 }
 
+export type RunenkriegConsolidationStage = 'none' | 'provisional' | 'stable';
+
+export interface RunenkriegContextMetadata {
+  bestCardKey: string;
+  observations: number;
+  wilsonLower: number;
+  wilsonUpper: number;
+  entropy: number;
+  baselineWinRate: number;
+  bestWinRate: number;
+  consolidationStage: RunenkriegConsolidationStage;
+  weaknessPenalty: number;
+  preferredResponses?: string[];
+}
+
+export interface SerializedRunenkriegContext {
+  aiCards: Record<string, { wins: number; total: number }>;
+  metadata?: RunenkriegContextMetadata;
+}
+
+export interface SerializedRunenkriegModel {
+  version: number;
+  generatedAt: string;
+  contexts: Record<string, SerializedRunenkriegContext>;
+  analysis: TrainingAnalysis;
+}
+
 export interface TrainedModel {
   predict: (playerCard: Card, aiHand: Card[], gameState: any) => Card;
   analysis: TrainingAnalysis;
+  serialize: () => SerializedRunenkriegModel;
 }
 
 export interface GameHistoryEntry {
@@ -260,8 +288,28 @@ export interface ChessMoveSuggestion {
   rationale: string;
 }
 
+export interface SerializedChessMoveStats {
+  total: number;
+  wins: number;
+  losses: number;
+  draws: number;
+}
+
+export interface SerializedChessPositionStats extends SerializedChessMoveStats {
+  moves: Record<string, SerializedChessMoveStats>;
+}
+
+export interface SerializedChessModel {
+  version: number;
+  generatedAt: string;
+  positions: Record<string, SerializedChessPositionStats>;
+  summary: ChessTrainingSummary;
+  insights: ChessAiInsight[];
+}
+
 export interface TrainedChessModel {
   chooseMove: (fen: string, legalMoves: ChessMove[], color: ChessColor) => ChessMoveSuggestion;
   summary: ChessTrainingSummary;
   insights: ChessAiInsight[];
+  serialize: () => SerializedChessModel;
 }

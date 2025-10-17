@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   RoundResult,
   SimulationAnalysis,
@@ -11,8 +11,18 @@ import {
 } from '../types';
 import { simulateGames, trainModel } from '../services/trainingService';
 import { simulateChessGames, summarizeChessSimulations, trainChessModel } from '../services/chessTrainingService';
-import { setTrainedModel, isAiTrained } from '../services/aiService';
-import { setTrainedChessModel, isChessAiTrained } from '../services/chessAiService';
+import {
+  setTrainedModel,
+  isAiTrained,
+  importRunenkriegModelFromFile,
+  getTrainedModel,
+} from '../services/aiService';
+import {
+  setTrainedChessModel,
+  isChessAiTrained,
+  importChessModelFromFile,
+  getTrainedChessModel,
+} from '../services/chessAiService';
 import Spinner from './Spinner';
 import CardGenerator from './CardGenerator';
 
@@ -105,7 +115,9 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
   const [isTraining, setIsTraining] = useState<boolean>(false);
   const [aiStatus, setAiStatus] = useState<string>(isAiTrained() ? 'KI ist trainiert und aktiv.' : 'KI nutzt zufällige Züge.');
   const [simulationAnalysis, setSimulationAnalysis] = useState<SimulationAnalysis | null>(null);
-  const [trainingAnalysis, setTrainingAnalysis] = useState<TrainingAnalysis | null>(null);
+  const [trainingAnalysis, setTrainingAnalysis] = useState<TrainingAnalysis | null>(
+    getTrainedModel()?.analysis ?? null
+  );
   const [simulationProgress, setSimulationProgress] = useState<number>(0);
   const [simulationStatus, setSimulationStatus] = useState<string>('Bereit für Simulationen.');
   const [simulationStatusTone, setSimulationStatusTone] = useState<SimulationStatusTone>('idle');
@@ -116,8 +128,12 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
   const [onlyDragonDuels, setOnlyDragonDuels] = useState<boolean>(false);
   const [chessSimulationCount, setChessSimulationCount] = useState<number>(200);
   const [chessSimulations, setChessSimulations] = useState<ChessSimulationResult[]>([]);
-  const [chessSummary, setChessSummary] = useState<ChessTrainingSummary | null>(null);
-  const [chessInsights, setChessInsights] = useState<ChessAiInsight[]>([]);
+  const [chessSummary, setChessSummary] = useState<ChessTrainingSummary | null>(
+    getTrainedChessModel()?.summary ?? null
+  );
+  const [chessInsights, setChessInsights] = useState<ChessAiInsight[]>(
+    getTrainedChessModel()?.insights ?? []
+  );
   const [isChessSimulating, setIsChessSimulating] = useState<boolean>(false);
   const [chessSimulationProgress, setChessSimulationProgress] = useState<number>(0);
   const [isChessTraining, setIsChessTraining] = useState<boolean>(false);
@@ -125,6 +141,8 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
   const [chessStatus, setChessStatus] = useState<string>(
     isChessAiTrained() ? 'Schach-KI ist trainiert und aktiv.' : 'Schach-KI nutzt heuristische Heuristiken.'
   );
+  const runenkriegModelInputRef = useRef<HTMLInputElement | null>(null);
+  const chessModelInputRef = useRef<HTMLInputElement | null>(null);
 
   const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
   const formatNumber = (value: number) => value.toLocaleString('de-DE');
@@ -189,11 +207,7 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
       setChessSummary(model.summary);
       setChessInsights(model.insights.slice(0, 12));
       setChessTrainingProgress(1);
-      setChessStatus((prev) =>
-        prev.toLowerCase().includes('schachtraining abgeschlossen')
-          ? `${prev} KI aktiviert.`
-          : 'Schach-KI erfolgreich trainiert und aktiviert.'
-      );
+      setChessStatus('Schachtraining abgeschlossen. Modell gespeichert und aktiviert.');
     } catch (error) {
       console.error('Fehler beim Schach-Training:', error);
       setChessStatus('Fehler beim Training der Schach-KI.');
@@ -202,6 +216,32 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
       setIsChessTraining(false);
     }
   }, [chessSimulations]);
+
+  const handleChessModelImport = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) {
+        return;
+      }
+      setChessStatus('Lade gespeichertes Schach-Modell...');
+      setIsChessTraining(true);
+      try {
+        const model = await importChessModelFromFile(file);
+        setChessSummary(model.summary);
+        setChessInsights(model.insights.slice(0, 12));
+        setChessTrainingProgress(1);
+        setChessStatus('Gespeichertes Schach-Modell geladen und aktiviert.');
+      } catch (error) {
+        console.error('Fehler beim Laden des Schach-Modells:', error);
+        setChessStatus('Gespeichertes Schach-Modell konnte nicht geladen werden.');
+        setChessTrainingProgress(0);
+      } finally {
+        event.target.value = '';
+        setIsChessTraining(false);
+      }
+    },
+    []
+  );
 
   const matchesContextFilters = useCallback(
     (context: ContextInsight) => {
@@ -366,6 +406,7 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
       setTrainingAnalysis(model.analysis);
       setAiStatus('KI wurde mit neuen Daten trainiert und ist aktiv.');
       setTrainingProgress(1);
+      setTrainingStatus('Training abgeschlossen. Modell gespeichert und aktiviert.');
     } catch (error) {
       console.error('Fehler beim KI-Training:', error);
       setTrainingStatus('Fehler beim Training der KI.');
@@ -374,6 +415,32 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
       setIsTraining(false);
     }
   }, [simulationData]);
+
+  const handleRunenkriegModelImport = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) {
+        return;
+      }
+      setTrainingStatus('Lade gespeichertes Runenkrieg-Modell...');
+      setIsTraining(true);
+      try {
+        const model = await importRunenkriegModelFromFile(file);
+        setTrainingAnalysis(model.analysis);
+        setAiStatus('Gespeichertes Runenkrieg-Modell geladen und aktiviert.');
+        setTrainingProgress(1);
+        setTrainingStatus('Modell importiert und aktiviert.');
+      } catch (error) {
+        console.error('Fehler beim Laden des Runenkrieg-Modells:', error);
+        setTrainingStatus('Gespeichertes Runenkrieg-Modell konnte nicht geladen werden.');
+        setTrainingProgress(0);
+      } finally {
+        event.target.value = '';
+        setIsTraining(false);
+      }
+    },
+    []
+  );
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-800 p-8">
@@ -473,7 +540,23 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
                  {simulationData.length === 0 &&
                     <p className="mt-4 text-yellow-400 text-center text-sm">Warte auf Simulationsdaten...</p>
                 }
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => runenkriegModelInputRef.current?.click()}
+                    className="w-full bg-purple-700 hover:bg-purple-800 text-white font-semibold py-2 px-4 rounded transition-colors"
+                  >
+                    Gespeichertes Modell laden
+                  </button>
+                </div>
             </div>
+            <input
+              ref={runenkriegModelInputRef}
+              type="file"
+              accept="application/json"
+              onChange={handleRunenkriegModelImport}
+              className="hidden"
+            />
         </div>
         
         {simulationAnalysis && (
@@ -908,6 +991,18 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
                                 ? `Trainiere... ${Math.round(chessTrainingProgress * 100)}%`
                                 : 'Schach-KI trainieren'}
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => chessModelInputRef.current?.click()}
+                            disabled={isChessTraining}
+                            className={`px-4 py-2 rounded-md font-semibold transition ${
+                                isChessTraining
+                                    ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                                    : 'bg-blue-700 hover:bg-blue-600 text-white'
+                            }`}
+                        >
+                            Gespeichertes Modell laden
+                        </button>
                     </div>
                     <p className="text-sm text-slate-300">{chessStatus}</p>
                     {isChessSimulating && (
@@ -977,8 +1072,15 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
                                 <div>
                                     <span className="font-semibold text-white">Δ Entropie:</span>{' '}
                                     {formatSigned(chessSummary.entropyDelta)}
-                                </div>
-                            </div>
+            </div>
+            <input
+                ref={chessModelInputRef}
+                type="file"
+                accept="application/json"
+                onChange={handleChessModelImport}
+                className="hidden"
+            />
+        </div>
                             {chessSummary.topOpenings.length > 0 && (
                                 <div>
                                     <p className="font-semibold text-white mt-3">Beliebte Eröffnungssequenzen</p>

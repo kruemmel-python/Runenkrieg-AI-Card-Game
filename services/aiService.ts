@@ -5,7 +5,8 @@ import {
     GameHistoryEntry,
     ElementType,
     HeroName,
-    WeatherType
+    WeatherType,
+    SerializedRunenkriegModel,
 } from '../types';
 import {
     ABILITIES,
@@ -15,8 +16,29 @@ import {
     HEROES,
     ABILITY_MECHANIC_DEFINITIONS
 } from '../constants';
+import { hydrateTrainedModel } from './trainingService';
+import { loadStoredRunenkriegModel, storeRunenkriegModel } from './modelPersistence';
 
 let trainedModel: TrainedModel | null = null;
+
+const restoreTrainedModel = () => {
+    if (trainedModel) {
+        return;
+    }
+
+    try {
+        const stored = loadStoredRunenkriegModel();
+        if (stored) {
+            trainedModel = hydrateTrainedModel(stored);
+        }
+    } catch (error) {
+        console.warn('Gespeichertes Runenkrieg-Modell konnte nicht geladen werden:', error);
+    }
+};
+
+if (typeof window !== 'undefined') {
+    restoreTrainedModel();
+}
 
 interface AiGameState {
     playerTokens: number;
@@ -35,13 +57,36 @@ type StrategyProfile = {
     secondaryElement: ElementType | null;
 };
 
-export function setTrainedModel(model: TrainedModel) {
+export function setTrainedModel(model: TrainedModel, options: { skipDownload?: boolean } = {}) {
     trainedModel = model;
+    try {
+        storeRunenkriegModel(model.serialize(), { triggerDownload: options.skipDownload !== true });
+    } catch (error) {
+        console.warn('Runenkrieg-Modell konnte nicht gespeichert werden:', error);
+    }
 }
 
 export function isAiTrained(): boolean {
     return trainedModel !== null;
 }
+
+export function getTrainedModel(): TrainedModel | null {
+    return trainedModel;
+}
+
+export const importRunenkriegModelFromFile = async (file: File): Promise<TrainedModel> => {
+    const content = await file.text();
+    let parsed: SerializedRunenkriegModel;
+    try {
+        parsed = JSON.parse(content) as SerializedRunenkriegModel;
+    } catch (error) {
+        throw new Error('Die ausgewählte Datei enthält kein gültiges Runenkrieg-Modell.');
+    }
+
+    const model = hydrateTrainedModel(parsed);
+    setTrainedModel(model, { skipDownload: true });
+    return model;
+};
 
 const getElementAdvantage = (attacking: ElementType, defending: ElementType): number => {
     return ELEMENT_HIERARCHIE[attacking]?.[defending] ?? 0;
