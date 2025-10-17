@@ -89,6 +89,15 @@ const buildSimulationAnalysis = (data: RoundResult[]): SimulationAnalysis => {
   };
 };
 
+type SimulationStatusTone = 'idle' | 'progress' | 'success' | 'error';
+
+const STATUS_TONE_CLASS: Record<SimulationStatusTone, string> = {
+  idle: 'text-slate-400',
+  progress: 'text-slate-300',
+  success: 'text-green-400',
+  error: 'text-red-400',
+};
+
 const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | 'chess') => void }> = ({ onSwitchView }) => {
   const [simulationCount, setSimulationCount] = useState<number>(1000);
   const [simulationData, setSimulationData] = useState<RoundResult[]>([]);
@@ -97,6 +106,9 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
   const [aiStatus, setAiStatus] = useState<string>(isAiTrained() ? 'KI ist trainiert und aktiv.' : 'KI nutzt zufällige Züge.');
   const [simulationAnalysis, setSimulationAnalysis] = useState<SimulationAnalysis | null>(null);
   const [trainingAnalysis, setTrainingAnalysis] = useState<TrainingAnalysis | null>(null);
+  const [simulationProgress, setSimulationProgress] = useState<number>(0);
+  const [simulationStatus, setSimulationStatus] = useState<string>('Bereit für Simulationen.');
+  const [simulationStatusTone, setSimulationStatusTone] = useState<SimulationStatusTone>('idle');
   const [onlyHighTokenDelta, setOnlyHighTokenDelta] = useState<boolean>(false);
   const [focusWeather, setFocusWeather] = useState<'all' | 'regenWind'>('all');
   const [onlyDragonDuels, setOnlyDragonDuels] = useState<boolean>(false);
@@ -273,17 +285,46 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
   };
   
   const handleSimulate = useCallback(() => {
-    setIsSimulating(true);
-    setSimulationData([]);
-    setSimulationAnalysis(null);
-    setTrainingAnalysis(null);
-    // Use timeout to allow UI to update before blocking
-    setTimeout(() => {
-        const data = simulateGames(simulationCount);
+    const runSimulation = async () => {
+      setIsSimulating(true);
+      setSimulationProgress(0);
+      setSimulationStatus('Starte Simulation...');
+      setSimulationStatusTone('progress');
+      setSimulationData([]);
+      setSimulationAnalysis(null);
+      setTrainingAnalysis(null);
+
+      try {
+        const data = await simulateGames(simulationCount, {
+          onProgress: (completed, total) => {
+            const safeTotal = total > 0 ? total : 1;
+            setSimulationProgress(Math.min(1, completed / safeTotal));
+            setSimulationStatus(
+              total > 0
+                ? `Simuliere Spiele... ${completed}/${total}`
+                : 'Simuliere Spiele...'
+            );
+            setSimulationStatusTone('progress');
+          },
+        });
         setSimulationData(data);
         setSimulationAnalysis(buildSimulationAnalysis(data));
+        setSimulationProgress(1);
+        setSimulationStatus(
+          `Simulation abgeschlossen! ${data.length.toLocaleString('de-DE')} Runden aufgezeichnet.`
+        );
+        setSimulationStatusTone('success');
+      } catch (error) {
+        console.error(error);
+        setSimulationProgress(0);
+        setSimulationStatus('Simulation abgebrochen oder fehlgeschlagen.');
+        setSimulationStatusTone('error');
+      } finally {
         setIsSimulating(false);
-    }, 50);
+      }
+    };
+
+    void runSimulation();
   }, [simulationCount]);
 
   const handleTrain = useCallback(() => {
@@ -340,9 +381,30 @@ const TrainingDashboard: React.FC<{ onSwitchView: (view: 'card' | 'training' | '
                     {isSimulating && <Spinner />}
                     {isSimulating ? 'Simuliere...' : `Simuliere ${simulationCount} Spiele`}
                 </button>
-                {simulationData.length > 0 && !isSimulating &&
-                    <p className="mt-4 text-green-400 text-center">Simulation abgeschlossen! {simulationData.length} Runden aufgezeichnet.</p>
-                }
+                {isSimulating && (
+                  <div className="mt-4">
+                    <div className="flex justify-between text-xs text-slate-400 mb-1">
+                      <span>Fortschritt</span>
+                      <span>{Math.round(simulationProgress * 100)}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 transition-all duration-200"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, simulationProgress * 100))}%`,
+                        }}
+                      />
+                    </div>
+                    <p className="mt-2 text-slate-300 text-sm text-center">{simulationStatus}</p>
+                  </div>
+                )}
+                {!isSimulating && simulationStatus && (
+                  <p
+                    className={`mt-4 text-center ${STATUS_TONE_CLASS[simulationStatusTone]}`}
+                  >
+                    {simulationStatus}
+                  </p>
+                )}
             </div>
             
             {/* Training Section */}
