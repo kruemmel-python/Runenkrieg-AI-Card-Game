@@ -371,6 +371,7 @@ Verwendung, Anpassung und Forschung ausdrücklich erlaubt – bitte unter Namens
 > 💬 *„Gleichgewicht ist Intelligenz – nicht Dominanz.“*
 > — *Ralf Krümmel, Entwickler der Runenkrieg-KI*
 
-```
+## Dieses Projekt ist in den Branchs
+
 
 
