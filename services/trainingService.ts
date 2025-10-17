@@ -69,7 +69,6 @@ const createCardTemplate = (label: string, idSuffix: string): Card => {
 const abilityIndex = (value: ValueType) => ABILITIES.indexOf(value);
 
 let fusionIdCounter = 0;
-let generatedCardCounter = 0;
 
 const determineFusionElement = (first: Card, second: Card): ElementType => {
     const synergy = ELEMENT_SYNERGIES.find(
@@ -113,21 +112,12 @@ const createFusionCard = (primary: Card, secondary: Card): Card => {
     };
 };
 
-const generateRandomCard = (ownerLabel: 'spieler' | 'gegner'): Card => {
-    const element = ELEMENTS[Math.floor(Math.random() * ELEMENTS.length)];
-    const ability = ABILITIES[Math.floor(Math.random() * ABILITIES.length)];
-    return createCardTemplate(
-        `${element} ${ability}`,
-        `${ownerLabel}-generated-${generatedCardCounter++}`
-    );
-};
-
-const ensureHandSize = (hand: Card[], talon: Card[], ownerLabel: 'spieler' | 'gegner'): void => {
+const ensureHandSize = (hand: Card[], talon: Card[]): void => {
     while (hand.length < HAND_SIZE) {
         if (talon.length > 0) {
             hand.push(talon.pop()!);
         } else {
-            hand.push(generateRandomCard(ownerLabel));
+            break;
         }
     }
 };
@@ -867,8 +857,8 @@ export function simulateGames(numGames: number): RoundResult[] {
 
         const history: GameHistoryEntry[] = [];
 
-        ensureHandSize(playerHand, talon, 'spieler');
-        ensureHandSize(aiHand, talon, 'gegner');
+        ensureHandSize(playerHand, talon);
+        ensureHandSize(aiHand, talon);
 
         while (playerTokens > 0 && aiTokens > 0 && playerHand.length > 0 && aiHand.length > 0) {
             const weather = Object.keys(WEATHER_EFFECTS)[
@@ -880,7 +870,7 @@ export function simulateGames(numGames: number): RoundResult[] {
                 playerFused = true;
             }
             if (playerFused) {
-                ensureHandSize(playerHand, talon, 'spieler');
+                ensureHandSize(playerHand, talon);
             }
 
             let aiFused = false;
@@ -888,11 +878,11 @@ export function simulateGames(numGames: number): RoundResult[] {
                 aiFused = true;
             }
             if (aiFused) {
-                ensureHandSize(aiHand, talon, 'gegner');
+                ensureHandSize(aiHand, talon);
             }
 
-            ensureHandSize(playerHand, talon, 'spieler');
-            ensureHandSize(aiHand, talon, 'gegner');
+            ensureHandSize(playerHand, talon);
+            ensureHandSize(aiHand, talon);
 
             const playerSelection = selectCardForSimulation(
                 playerHand,
@@ -977,8 +967,8 @@ export function simulateGames(numGames: number): RoundResult[] {
                 aiTokens,
             });
 
-            ensureHandSize(playerHand, talon, 'spieler');
-            ensureHandSize(aiHand, talon, 'gegner');
+            ensureHandSize(playerHand, talon);
+            ensureHandSize(aiHand, talon);
         }
     }
     augmentWithFocusRounds(numGames, allData);
