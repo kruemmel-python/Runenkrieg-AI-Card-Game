@@ -10,8 +10,12 @@ import {
     ChessResonanceLink,
     ChessLearningBalanceItem,
     ChessDominantColor,
+    TrainingRunOptions,
+    SerializedChessModel,
+    SerializedChessMoveStats,
 } from '../types';
 import { SimpleChess, getPieceValue } from './chessEngine';
+import { computeChessMoveStatsGpu } from './gpuAcceleration';
 
 interface ChessSimulationOptions {
     maxPlies?: number;
@@ -570,9 +574,24 @@ const confidenceScore = (samples: number): number => {
     return Math.min(1, Math.log10(samples + 1) / 2);
 };
 
-export const trainChessModel = (
-    simulations: ChessSimulationResult[]
-): TrainedChessModel => {
+const CHESS_INITIALIZATION_PROGRESS_SHARE = 0.05;
+const MIN_GAME_PROGRESS_STEPS = 40;
+const MIN_POSITION_PROGRESS_STEPS = 30;
+
+const computeYieldInterval = (total: number, desiredSteps: number) =>
+    Math.max(1, Math.floor(Math.max(1, total) / Math.max(1, desiredSteps)));
+
+const yieldDuringTraining = async (iteration: number, interval: number) => {
+    if (interval > 0 && iteration % interval === 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+};
+
+export const trainChessModel = async (
+    simulations: ChessSimulationResult[],
+    options: TrainingRunOptions = {}
+): Promise<TrainedChessModel> => {
+    const { onProgress, preferGpu = false } = options;
     const positions = new Map<string, PositionStats>();
 
     const increment = (
@@ -605,25 +624,111 @@ export const trainChessModel = (
         else moveStats.losses += 1;
     };
 
-    for (const game of simulations) {
+    onProgress?.({
+        phase: 'initializing',
+        progress: CHESS_INITIALIZATION_PROGRESS_SHARE,
+        message: 'Bereite Schach-Trainingsdaten vor.',
+    });
+
+    const totalGames = simulations.length;
+    const safeTotalGames = Math.max(1, totalGames);
+    const gameYieldInterval = computeYieldInterval(totalGames, MIN_GAME_PROGRESS_STEPS);
+    const aggregationShare = totalGames > 0 ? 0.45 : 0;
+    const analysisShare = Math.max(0, 1 - CHESS_INITIALIZATION_PROGRESS_SHARE - aggregationShare);
+
+    for (let gameIndex = 0; gameIndex < simulations.length; gameIndex++) {
+        const game = simulations[gameIndex];
         for (const moveRecord of game.moves) {
             const strictKey = fenKey(moveRecord.fen, true);
             const relaxedKey = fenKey(moveRecord.fen, false);
             increment(strictKey, moveRecord.move, game.winner, moveRecord.color);
             increment(relaxedKey, moveRecord.move, game.winner, moveRecord.color);
         }
+
+        if ((gameIndex + 1) % gameYieldInterval === 0 || gameIndex === simulations.length - 1) {
+            const ratio = (gameIndex + 1) / safeTotalGames;
+            onProgress?.({
+                phase: 'aggregating',
+                progress: CHESS_INITIALIZATION_PROGRESS_SHARE + aggregationShare * ratio,
+                message: `Verarbeite Schachpartie ${gameIndex + 1} von ${safeTotalGames}`,
+            });
+            await yieldDuringTraining(gameIndex + 1, gameYieldInterval);
+        }
+    }
+
+    if (totalGames === 0) {
+        onProgress?.({
+            phase: 'aggregating',
+            progress: CHESS_INITIALIZATION_PROGRESS_SHARE,
+            message: 'Keine Schachsimulationen – nutze vorhandene Priors.',
+        });
+    } else {
+        onProgress?.({
+            phase: 'aggregating',
+            progress: CHESS_INITIALIZATION_PROGRESS_SHARE + aggregationShare,
+            message: 'Schachsimulationen verarbeitet. Analysiere Positionen...',
+        });
     }
 
     const summary = summarizeChessSimulations(simulations);
 
     const insights: ChessAiInsight[] = [];
-    positions.forEach((stats, key) => {
-        stats.moves.forEach((moveStats, move) => {
-            if (moveStats.total < 5) {
-                return;
+    const positionEntries = Array.from(positions.entries());
+    const safePositionTotal = Math.max(1, positionEntries.length);
+    const positionYieldInterval = computeYieldInterval(positionEntries.length, MIN_POSITION_PROGRESS_STEPS);
+    let gpuUtilized = false;
+    let gpuAvailableForPositions = preferGpu;
+
+    for (let positionIndex = 0; positionIndex < positionEntries.length; positionIndex++) {
+        const [key, stats] = positionEntries[positionIndex];
+        const moveEntries = Array.from(stats.moves.entries());
+        if (moveEntries.length === 0) {
+            continue;
+        }
+
+        const winsArray = new Float32Array(moveEntries.length);
+        const lossesArray = new Float32Array(moveEntries.length);
+        const drawsArray = new Float32Array(moveEntries.length);
+        for (let idx = 0; idx < moveEntries.length; idx++) {
+            const moveStats = moveEntries[idx][1];
+            winsArray[idx] = moveStats.wins;
+            lossesArray[idx] = moveStats.losses;
+            drawsArray[idx] = moveStats.draws;
+        }
+
+        let gpuStats: Float32Array | null = null;
+        if (gpuAvailableForPositions && moveEntries.length >= 4) {
+            try {
+                gpuStats = await computeChessMoveStatsGpu(winsArray, lossesArray, drawsArray);
+                if (gpuStats) {
+                    gpuUtilized = true;
+                } else {
+                    gpuAvailableForPositions = false;
+                }
+            } catch (error) {
+                console.warn('GPU-gestützte Berechnung der Schachzüge fehlgeschlagen, nutze CPU.', error);
+                gpuAvailableForPositions = false;
+                gpuStats = null;
             }
-            const expected = expectedScore(moveStats.wins, moveStats.losses, moveStats.draws);
-            const confidence = confidenceScore(moveStats.total);
+        }
+
+        for (let moveIndex = 0; moveIndex < moveEntries.length; moveIndex++) {
+            const [move, moveStats] = moveEntries[moveIndex];
+            if (moveStats.total < 5) {
+                continue;
+            }
+
+            let expected: number;
+            let confidence: number;
+            if (gpuStats && gpuStats.length >= (moveIndex + 1) * 2) {
+                const baseIndex = moveIndex * 2;
+                expected = gpuStats[baseIndex];
+                confidence = gpuStats[baseIndex + 1];
+            } else {
+                expected = expectedScore(moveStats.wins, moveStats.losses, moveStats.draws);
+                confidence = confidenceScore(moveStats.total);
+            }
+
             insights.push({
                 fen: key,
                 recommendedMove: move,
@@ -631,11 +736,48 @@ export const trainChessModel = (
                 expectedScore: expected,
                 sampleSize: moveStats.total,
             });
-        });
-    });
+        }
+
+        if ((positionIndex + 1) % positionYieldInterval === 0 || positionIndex === positionEntries.length - 1) {
+            const ratio = (positionIndex + 1) / safePositionTotal;
+            const progressValue =
+                CHESS_INITIALIZATION_PROGRESS_SHARE + aggregationShare + analysisShare * ratio;
+            const messageBase = preferGpu
+                ? gpuUtilized
+                    ? 'Bewerte Positionen (GPU aktiv)'
+                    : 'Bewerte Positionen (GPU bevorzugt)'
+                : 'Bewerte Positionen';
+            onProgress?.({
+                phase: 'analyzing',
+                progress: Math.min(0.999, progressValue),
+                message: `${messageBase} – ${positionIndex + 1}/${safePositionTotal}`,
+            });
+            await yieldDuringTraining(positionIndex + 1, positionYieldInterval);
+        }
+    }
 
     insights.sort((a, b) => b.expectedScore - a.expectedScore || b.confidence - a.confidence);
 
+    const topInsights = insights.slice(0, 25);
+    const trainedModel = buildTrainedChessModel(positions, summary, topInsights);
+
+    const finalMessage = preferGpu
+        ? gpuUtilized
+            ? 'Schachtraining abgeschlossen. GPU-Beschleunigung aktiv.'
+            : 'Schachtraining abgeschlossen. GPU nicht verfügbar – CPU genutzt.'
+        : 'Schachtraining abgeschlossen.';
+    onProgress?.({ phase: 'finalizing', progress: 1, message: finalMessage });
+
+    return trainedModel;
+};
+
+const CHESS_MODEL_VERSION = 1;
+
+const buildTrainedChessModel = (
+    positions: Map<string, PositionStats>,
+    summary: ChessTrainingSummary,
+    insights: ChessAiInsight[]
+): TrainedChessModel => {
     const chooseMove = (
         fen: string,
         legalMoves: ChessMove[],
@@ -661,9 +803,12 @@ export const trainChessModel = (
                     sampleSize: moveStats.total,
                     rationale,
                 };
-                if (!bestSuggestion || expected > bestSuggestion.expectedScore || (
-                    Math.abs(expected - bestSuggestion.expectedScore) < 0.01 && confidence > bestSuggestion.confidence
-                )) {
+                if (
+                    !bestSuggestion ||
+                    expected > bestSuggestion.expectedScore ||
+                    (Math.abs(expected - bestSuggestion.expectedScore) < 0.01 &&
+                        confidence > bestSuggestion.confidence)
+                ) {
                     bestSuggestion = suggestion;
                 }
             }
@@ -673,7 +818,6 @@ export const trainChessModel = (
             return bestSuggestion;
         }
 
-        // Fallback: choose heuristic move when no data
         const tempGame = SimpleChess.fromFen(fen);
         const fallbackMoves = legalMoves.map((move) => ({
             move,
@@ -690,9 +834,85 @@ export const trainChessModel = (
         };
     };
 
-    return {
-        chooseMove,
-        summary,
-        insights: insights.slice(0, 25),
+    const serialize = (): SerializedChessModel => {
+        const positionsSnapshot: SerializedChessModel['positions'] = {};
+        positions.forEach((stats, key) => {
+            const moves: Record<string, SerializedChessMoveStats> = {};
+            stats.moves.forEach((moveStats, moveKey) => {
+                moves[moveKey] = {
+                    total: moveStats.total,
+                    wins: moveStats.wins,
+                    losses: moveStats.losses,
+                    draws: moveStats.draws,
+                };
+            });
+            positionsSnapshot[key] = {
+                total: stats.total,
+                wins: stats.wins,
+                losses: stats.losses,
+                draws: stats.draws,
+                moves,
+            };
+        });
+
+        return {
+            version: CHESS_MODEL_VERSION,
+            generatedAt: new Date().toISOString(),
+            positions: positionsSnapshot,
+            summary: JSON.parse(JSON.stringify(summary)) as ChessTrainingSummary,
+            insights: JSON.parse(JSON.stringify(insights)) as ChessAiInsight[],
+        };
     };
+
+    return { chooseMove, summary, insights, serialize };
+};
+
+export const hydrateChessModel = (serialized: SerializedChessModel): TrainedChessModel => {
+    if (!serialized || typeof serialized !== 'object') {
+        throw new Error('Ungültiges Schachmodell-Format.');
+    }
+
+    if (serialized.version !== CHESS_MODEL_VERSION) {
+        console.warn(
+            `Geladenes Schachmodell hat Version ${serialized.version}, erwartet ${CHESS_MODEL_VERSION}.`
+        );
+    }
+
+    const positions = new Map<string, PositionStats>();
+    const positionEntries = Object.entries(serialized.positions ?? {});
+    for (const [key, stats] of positionEntries) {
+        const moves = new Map<string, PositionMoveStats>();
+        const moveEntries = Object.entries(stats.moves ?? {});
+        for (const [moveKey, moveStats] of moveEntries) {
+            moves.set(moveKey, {
+                total: moveStats.total,
+                wins: moveStats.wins,
+                losses: moveStats.losses,
+                draws: moveStats.draws,
+            });
+        }
+        positions.set(key, {
+            total: stats.total,
+            wins: stats.wins,
+            losses: stats.losses,
+            draws: stats.draws,
+            moves,
+        });
+    }
+
+    const insights = serialized.insights ?? [];
+    const summary = serialized.summary ?? {
+        totalGames: 0,
+        whiteWins: 0,
+        blackWins: 0,
+        draws: 0,
+        averageGameLength: 0,
+        entropyWhite: 0,
+        entropyBlack: 0,
+        entropyDelta: 0,
+        resonanceMapping: createDefaultResonanceMapping(),
+        learningBalance: createDefaultLearningBalance(),
+    };
+
+    return buildTrainedChessModel(positions, summary, insights);
 };

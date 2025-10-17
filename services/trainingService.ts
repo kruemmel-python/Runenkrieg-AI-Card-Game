@@ -6,6 +6,7 @@ import {
     Winner,
     HeroName,
     TrainingAnalysis,
+    TrainingRunOptions,
     GameHistoryEntry,
     ElementType,
     AbilityMechanicName,
@@ -16,6 +17,8 @@ import {
     MechanicEffectivenessInsight,
     ResamplingRecommendation,
     ValueType,
+    SerializedRunenkriegModel,
+    RunenkriegContextMetadata,
 } from '../types';
 import {
     ELEMENTS,
@@ -35,6 +38,7 @@ import {
     resolveMechanicEffects,
 } from './mechanicEngine';
 import { buildShuffledDeck, getRandomCardTemplate } from './cardCatalogService';
+import { computeWilsonStatsGpu } from './gpuAcceleration';
 
 const WILSON_Z = 1.96;
 
@@ -556,18 +560,7 @@ const FOCUS_CONTEXT_INDEX = WEAK_CONTEXT_FOCUS.reduce<
     return map;
 }, new Map());
 
-type ContextMetadata = {
-    bestCardKey: string;
-    observations: number;
-    wilsonLower: number;
-    wilsonUpper: number;
-    entropy: number;
-    baselineWinRate: number;
-    bestWinRate: number;
-    consolidationStage: 'none' | 'provisional' | 'stable';
-    weaknessPenalty: number;
-    preferredResponses?: string[];
-};
+type ContextMetadata = RunenkriegContextMetadata;
 
 function wilsonInterval(wins: number, trials: number, z: number = WILSON_Z) {
     if (trials === 0) {
@@ -1055,9 +1048,52 @@ export async function simulateGames(
 
 // --- Training Logic (now context-aware) ---
 
+const GPU_WILSON_STRIDE = 5;
+const INITIALIZATION_PROGRESS_SHARE = 0.05;
+const MIN_SIMULATION_PROGRESS_STEPS = 40;
+const MIN_CONTEXT_PROGRESS_STEPS = 30;
+
+const computeYieldInterval = (total: number, desiredSteps: number) =>
+    Math.max(1, Math.floor(Math.max(1, total) / Math.max(1, desiredSteps)));
+
+const yieldDuringTraining = async (iteration: number, interval: number) => {
+    if (interval > 0 && iteration % interval === 0) {
+        await waitFor(0);
+    }
+};
+
 // This builds a model: for each (player card + weather), what AI card has the best win rate?
-export function trainModel(simulationData: RoundResult[]): TrainedModel {
+export async function trainModel(
+    simulationData: RoundResult[],
+    options: TrainingRunOptions = {}
+): Promise<TrainedModel> {
+    const { onProgress, preferGpu = false, baseModel } = options;
     const modelData = new Map<string, Map<string, { wins: number; total: number }>>();
+    const contextMetadata = new Map<string, ContextMetadata>();
+    const hasBaseModel = Boolean(baseModel);
+
+    if (baseModel) {
+        try {
+            const { modelData: existingData, metadataMap } = inflateSerializedRunenkriegModel(baseModel);
+            existingData.forEach((aiMap, contextKey) => {
+                const clonedMap = new Map<string, { wins: number; total: number }>();
+                aiMap.forEach((stats, cardKey) => {
+                    clonedMap.set(cardKey, { wins: stats.wins, total: stats.total });
+                });
+                modelData.set(contextKey, clonedMap);
+            });
+            metadataMap.forEach((metadata, contextKey) => {
+                contextMetadata.set(contextKey, {
+                    ...metadata,
+                    preferredResponses: metadata.preferredResponses
+                        ? [...metadata.preferredResponses]
+                        : undefined,
+                });
+            });
+        } catch (error) {
+            console.warn('Fortführung des vorhandenen Runenkrieg-Modells fehlgeschlagen:', error);
+        }
+    }
 
     for (const [contextKey, focusDetails] of FOCUS_CONTEXT_INDEX.entries()) {
         if (!modelData.has(contextKey)) {
@@ -1065,17 +1101,35 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         }
         const aiCardMap = modelData.get(contextKey)!;
         focusDetails.forEach((detail) => {
-            if (!aiCardMap.has(detail.aiCard)) {
-                aiCardMap.set(detail.aiCard, { wins: 0, total: 0 });
+            let stats = aiCardMap.get(detail.aiCard);
+            let isNewEntry = false;
+            if (!stats) {
+                stats = { wins: 0, total: 0 };
+                aiCardMap.set(detail.aiCard, stats);
+                isNewEntry = true;
             }
-            const stats = aiCardMap.get(detail.aiCard)!;
-            const priorWins = Math.round(detail.priorWeight * detail.targetAiWinRate);
-            stats.total += detail.priorWeight;
-            stats.wins += priorWins;
+            if (!hasBaseModel || isNewEntry) {
+                const priorWins = Math.round(detail.priorWeight * detail.targetAiWinRate);
+                stats.total += detail.priorWeight;
+                stats.wins += priorWins;
+            }
         });
     }
 
-    for (const round of simulationData) {
+    onProgress?.({
+        phase: 'initializing',
+        progress: INITIALIZATION_PROGRESS_SHARE,
+        message: 'Kontextbasierte Priors initialisiert.',
+    });
+
+    const totalRounds = simulationData.length;
+    const safeTotalRounds = Math.max(1, totalRounds);
+    const simulationYieldInterval = computeYieldInterval(totalRounds, MIN_SIMULATION_PROGRESS_STEPS);
+    const aggregationShare = totalRounds > 0 ? 0.45 : 0;
+    const analysisShare = Math.max(0, 1 - INITIALIZATION_PROGRESS_SHARE - aggregationShare);
+
+    for (let i = 0; i < totalRounds; i++) {
+        const round = simulationData[i];
         // UPDATED: Context-aware key
         const tokenDelta = round.spieler_token_vorher - round.gegner_token_vorher;
         const clampedDelta = clampTokenDelta(tokenDelta);
@@ -1097,6 +1151,30 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         if (round.gewinner === 'gegner') {
             stats.wins += 1;
         }
+
+        if ((i + 1) % simulationYieldInterval === 0 || i === totalRounds - 1) {
+            const ratio = (i + 1) / safeTotalRounds;
+            onProgress?.({
+                phase: 'aggregating',
+                progress: INITIALIZATION_PROGRESS_SHARE + aggregationShare * ratio,
+                message: `Verarbeite Simulation ${i + 1} von ${safeTotalRounds}`,
+            });
+            await yieldDuringTraining(i + 1, simulationYieldInterval);
+        }
+    }
+
+    if (totalRounds === 0) {
+        onProgress?.({
+            phase: 'aggregating',
+            progress: INITIALIZATION_PROGRESS_SHARE,
+            message: 'Keine Simulationsdaten – nutze Fokus-Prioren.',
+        });
+    } else {
+        onProgress?.({
+            phase: 'aggregating',
+            progress: INITIALIZATION_PROGRESS_SHARE + aggregationShare,
+            message: 'Simulationen verarbeitet. Starte Kontextanalyse...',
+        });
     }
 
     let contextsWithSolidData = 0;
@@ -1118,10 +1196,16 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         totalWithTrials: number;
         weatherCounts: Map<WeatherType, number>;
     }>();
-    const contextMetadata = new Map<string, ContextMetadata>();
     const entropyAlerts: ContextInsight[] = [];
+    const contextEntries = Array.from(modelData.entries());
+    const contextEntryCount = contextEntries.length;
+    const safeContextTotal = Math.max(1, contextEntryCount);
+    const contextYieldInterval = computeYieldInterval(contextEntryCount, MIN_CONTEXT_PROGRESS_STEPS);
+    let gpuUtilized = false;
+    let gpuAvailableForContexts = preferGpu;
 
-    for (const [contextKey, aiCardMap] of modelData.entries()) {
+    for (let contextIndex = 0; contextIndex < contextEntryCount; contextIndex++) {
+        const [contextKey, aiCardMap] = contextEntries[contextIndex];
         const [playerCardLabel, weatherString, heroMatchupString, deltaString] = contextKey.split('|');
         const weather = weatherString as WeatherType;
         const [playerHero, aiHero] = heroMatchupString.split('vs') as [HeroName, HeroName];
@@ -1142,23 +1226,74 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         }[] = [];
         const mechanicUsage = new Map<AbilityMechanicName, { wins: number; total: number }>();
 
-        for (const [cardKey, stats] of aiCardMap.entries()) {
-            if (stats.total === 0) continue;
+        const statsList: Array<{ key: string; stats: { wins: number; total: number } }> = [];
+        aiCardMap.forEach((stats, cardKey) => {
+            statsList.push({ key: cardKey, stats });
+        });
+
+        const winsArray = new Float32Array(statsList.length);
+        const totalsArray = new Float32Array(statsList.length);
+        for (let idx = 0; idx < statsList.length; idx++) {
+            winsArray[idx] = statsList[idx].stats.wins;
+            totalsArray[idx] = statsList[idx].stats.total;
+        }
+
+        let gpuStats: Float32Array | null = null;
+        if (gpuAvailableForContexts && statsList.length >= 4) {
+            try {
+                gpuStats = await computeWilsonStatsGpu(winsArray, totalsArray);
+                if (gpuStats) {
+                    gpuUtilized = true;
+                } else {
+                    gpuAvailableForContexts = false;
+                }
+            } catch (error) {
+                console.warn('GPU-gestützte Kontextauswertung fehlgeschlagen, wechsle zu CPU.', error);
+                gpuAvailableForContexts = false;
+                gpuStats = null;
+            }
+        }
+
+        for (let idx = 0; idx < statsList.length; idx++) {
+            const { key: cardKey, stats } = statsList[idx];
+            if (stats.total === 0) {
+                continue;
+            }
 
             totalTrials += stats.total;
             totalWins += stats.wins;
 
-            const interval = wilsonInterval(stats.wins, stats.total);
-            const winRate = stats.wins / stats.total;
+            let winRate: number;
+            let wilsonLower: number;
+            let wilsonUpper: number;
+            let intervalWidth: number;
+            let evidenceScoreValue: number;
+
+            if (gpuStats && gpuStats.length >= (idx + 1) * GPU_WILSON_STRIDE) {
+                const baseIndex = idx * GPU_WILSON_STRIDE;
+                winRate = gpuStats[baseIndex];
+                wilsonLower = gpuStats[baseIndex + 1];
+                wilsonUpper = gpuStats[baseIndex + 2];
+                intervalWidth = gpuStats[baseIndex + 3];
+                evidenceScoreValue = gpuStats[baseIndex + 4];
+            } else {
+                const interval = wilsonInterval(stats.wins, stats.total);
+                winRate = stats.wins / stats.total;
+                wilsonLower = interval.lower;
+                wilsonUpper = interval.upper;
+                intervalWidth = interval.width;
+                evidenceScoreValue = computeEvidenceScore(interval.lower, interval.upper);
+            }
+
             candidateSummaries.push({
                 cardKey,
                 wins: stats.wins,
                 total: stats.total,
                 winRate,
-                wilsonLower: interval.lower,
-                wilsonUpper: interval.upper,
-                intervalWidth: interval.width,
-                evidenceScore: computeEvidenceScore(interval.lower, interval.upper),
+                wilsonLower,
+                wilsonUpper,
+                intervalWidth,
+                evidenceScore: evidenceScoreValue,
             });
 
             const { ability: aiAbility } = parseCardLabel(cardKey);
@@ -1333,9 +1468,23 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
             record.weatherCounts.set(weather, (record.weatherCounts.get(weather) ?? 0) + usage.total);
             mechanicStats.set(mechanic, record);
         });
+
+        const ratio = (contextIndex + 1) / safeContextTotal;
+        const progressValue = INITIALIZATION_PROGRESS_SHARE + aggregationShare + analysisShare * ratio;
+        const gpuMessage = preferGpu
+            ? gpuUtilized
+                ? 'Analysiere Kontexte (GPU aktiv)'
+                : 'Analysiere Kontexte (GPU bevorzugt)'
+            : 'Analysiere Kontexte';
+        onProgress?.({
+            phase: 'analyzing',
+            progress: Math.min(0.999, progressValue),
+            message: `${gpuMessage} – ${contextIndex + 1}/${safeContextTotal}`,
+        });
+        await yieldDuringTraining(contextIndex + 1, contextYieldInterval);
     }
 
-    const totalContexts = modelData.size;
+    const totalContexts = contextDetails.length;
     const averageBestWinRate = contextsWithBestCard > 0 ? winRateSum / contextsWithBestCard : 0;
 
     const topContexts = contextDetails
@@ -1471,6 +1620,56 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         decisionEntropyAlerts: entropyAlerts.slice(0, 10),
     };
 
+    const trainedModel = buildRunenkriegModel(modelData, contextMetadata, analysis);
+
+    const finalMessage = preferGpu
+        ? gpuUtilized
+            ? 'Training abgeschlossen. GPU-Beschleunigung aktiv.'
+            : 'Training abgeschlossen. GPU nicht verfügbar – CPU genutzt.'
+        : 'Training abgeschlossen.';
+    onProgress?.({ phase: 'finalizing', progress: 1, message: finalMessage });
+
+    return trainedModel;
+}
+
+const RUNENKRIEG_MODEL_VERSION = 1;
+
+function inflateSerializedRunenkriegModel(
+    serialized: SerializedRunenkriegModel
+): {
+    modelData: Map<string, Map<string, { wins: number; total: number }>>;
+    metadataMap: Map<string, ContextMetadata>;
+} {
+    const modelData = new Map<string, Map<string, { wins: number; total: number }>>();
+    const metadataMap = new Map<string, ContextMetadata>();
+
+    const entries = Object.entries(serialized.contexts ?? {});
+    for (const [contextKey, contextValue] of entries) {
+        const aiMap = new Map<string, { wins: number; total: number }>();
+        const cardEntries = Object.entries(contextValue?.aiCards ?? {});
+        for (const [cardKey, stats] of cardEntries) {
+            aiMap.set(cardKey, { wins: stats.wins, total: stats.total });
+        }
+        modelData.set(contextKey, aiMap);
+
+        if (contextValue?.metadata) {
+            metadataMap.set(contextKey, {
+                ...contextValue.metadata,
+                preferredResponses: contextValue.metadata.preferredResponses
+                    ? [...contextValue.metadata.preferredResponses]
+                    : undefined,
+            });
+        }
+    }
+
+    return { modelData, metadataMap };
+}
+
+function buildRunenkriegModel(
+    modelData: Map<string, Map<string, { wins: number; total: number }>>,
+    contextMetadata: Map<string, ContextMetadata>,
+    analysis: TrainingAnalysis
+): TrainedModel {
     const predict = (playerCard: Card, aiHand: Card[], gameState: any): Card => {
         const tokenDelta = (gameState.playerTokens ?? 0) - (gameState.aiTokens ?? 0);
         const clampedDelta = clampTokenDelta(tokenDelta);
@@ -1587,5 +1786,52 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         return topCandidate.card;
     };
 
-    return { predict, analysis };
+    const serialize = (): SerializedRunenkriegModel => {
+        const contexts: SerializedRunenkriegModel['contexts'] = {};
+        modelData.forEach((aiCardMap, contextKey) => {
+            const aiCards: Record<string, { wins: number; total: number }> = {};
+            aiCardMap.forEach((stats, cardKey) => {
+                aiCards[cardKey] = { wins: stats.wins, total: stats.total };
+            });
+            const metadata = contextMetadata.get(contextKey);
+            contexts[contextKey] = {
+                aiCards,
+                ...(metadata
+                    ? {
+                          metadata: {
+                              ...metadata,
+                              preferredResponses: metadata.preferredResponses
+                                  ? [...metadata.preferredResponses]
+                                  : undefined,
+                          },
+                      }
+                    : {}),
+            };
+        });
+
+        return {
+            version: RUNENKRIEG_MODEL_VERSION,
+            generatedAt: new Date().toISOString(),
+            contexts,
+            analysis: JSON.parse(JSON.stringify(analysis)) as TrainingAnalysis,
+        };
+    };
+
+    return { predict, analysis, serialize };
+}
+
+export function hydrateTrainedModel(serialized: SerializedRunenkriegModel): TrainedModel {
+    if (!serialized || typeof serialized !== 'object') {
+        throw new Error('Ungültiges Runenkrieg-Modellformat.');
+    }
+
+    if (serialized.version !== RUNENKRIEG_MODEL_VERSION) {
+        console.warn(
+            `Geladenes Runenkrieg-Modell hat Version ${serialized.version}, erwartet ${RUNENKRIEG_MODEL_VERSION}.`
+        );
+    }
+
+    const { modelData, metadataMap } = inflateSerializedRunenkriegModel(serialized);
+
+    return buildRunenkriegModel(modelData, metadataMap, serialized.analysis);
 }
