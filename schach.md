@@ -156,17 +156,131 @@ if H(context) < 0.3 or wilson < 0.6:
 ### 🧭 Diagramm
 
 ```mermaid
-flowchart TD
-  A[Selbst-Spiel Simulation] --> B[Kontextbildung]
-  B --> C[Soft-WTA Auswahl]
-  C --> D[Logging: (Kontext, Aktion, Ergebnis)]
-  D --> E[Aggregation pro Kontext/Aktion]
-  E --> F[Wilson-Untergrenze / Expected Score]
-  F --> G[Entscheidungsmodell (predict)]
-  G -->|unsicher / H<0.3| H[Exploration ↑]
-  G -->|stabil| I[Exploitation]
-  H --> A
-  I --> A
+sequenceDiagram
+    box "Client/Browser"
+        participant User
+        participant ReactApp as App.tsx
+        participant GameBoard as components/GameBoard.tsx
+        participant ChessArena as components/ChessArena.tsx
+        participant CardComponent as components/Card.tsx
+        participant Spinner as components/Spinner.tsx
+    end
+
+    box "Frontend Logic & Services"
+        participant GameLogicHook as hooks/useGameLogic.ts
+        participant CardCatalogService as services/cardCatalogService.ts
+        participant AIService as services/aiService.ts
+        participant AIDecisionEngine as services/aiDecisionEngine.ts
+        participant MechanicEngine as services/mechanicEngine.ts
+        participant FusionService as services/fusionService.ts
+        participant GeminiService as services/geminiService.ts
+        participant ChessAIService as services/chessAiService.ts
+        participant SimpleChessEngine as services/chessEngine.ts
+    end
+
+    box "External Systems"
+        participant GoogleGeminiAPI as Google Gemini API
+        participant LocalStorage as Browser LocalStorage
+    end
+
+    User->>ReactApp: App laden
+    activate ReactApp
+    ReactApp->>GameBoard: Standardansicht rendern (currentView='card')
+    activate GameBoard
+
+    GameBoard->>LocalStorage: Gemini-Einstellungen laden
+    activate LocalStorage
+    LocalStorage-->>GameBoard: Einstellungen
+    deactivate LocalStorage
+
+    GameBoard->>GameLogicHook: useGameLogic() initialisieren
+    activate GameLogicHook
+    GameLogicHook->>CardCatalogService: buildShuffledDeck()
+    activate CardCatalogService
+    CardCatalogService-->>GameLogicHook: Deck
+    deactivate CardCatalogService
+    GameLogicHook-->>GameBoard: Spielzustand (Hände, Tokens, Helden)
+    deactivate GameLogicHook
+
+    GameBoard->>CardComponent: Spieler- & KI-Hände rendern
+    GameBoard->>GameBoard: Status & Wetter anzeigen
+
+    loop Game Rounds
+        User->>GameBoard: Karte spielen
+        activate GameBoard
+        GameBoard->>GameLogicHook: playCard(playerCardId)
+        activate GameLogicHook
+
+        GameLogicHook->>AIService: chooseCard(playerCard, aiHand, gameState)
+        activate AIService
+        alt AI ist trainiert
+            AIService->>AIService: trainedModel.predict()
+        else AI ist nicht trainiert
+            AIService->>AIDecisionEngine: generateAiPlayOptions()
+            activate AIDecisionEngine
+            AIDecisionEngine->>FusionService: createFusionCard() (optional)
+            activate FusionService
+            FusionService-->>AIDecisionEngine: Fusionskarte
+            deactivate FusionService
+            AIDecisionEngine-->>AIService: Bewertete Spieloptionen
+            deactivate AIDecisionEngine
+            AIService->>AIService: Beste Karte auswählen (Heuristik)
+        end
+        AIService-->>GameLogicHook: aiCard
+        deactivate AIService
+
+        GameLogicHook->>MechanicEngine: resolveMechanicEffects(roundData)
+        activate MechanicEngine
+        MechanicEngine-->>GameLogicHook: Aktualisierte Tokens & Nachrichten
+        deactivate MechanicEngine
+
+        GameLogicHook-->>GameBoard: Aktualisierter Spielzustand
+        deactivate GameLogicHook
+        GameBoard->>CardComponent: Gespielte Karten & Hände aktualisieren
+        GameBoard->>GameBoard: Statusmeldungen anzeigen
+    end
+
+    alt Spiel beendet (gamePhase='gameOver')
+        GameBoard->>GameBoard: "Spiel Vorbei!" anzeigen
+        GameBoard->>Spinner: Spinner anzeigen (während Geschichte generiert wird)
+        activate Spinner
+        GameBoard->>GeminiService: generateGameStory(history, winner, ...)
+        activate GeminiService
+        GeminiService->>GoogleGeminiAPI: Prompt senden
+        activate GoogleGeminiAPI
+        GoogleGeminiAPI-->>GeminiService: Generierte Geschichte
+        deactivate GoogleGeminiAPI
+        GeminiService-->>GameBoard: Geschichte
+        deactivate GeminiService
+        deactivate Spinner
+        GameBoard->>GameBoard: Geschichte anzeigen
+        User->>GameBoard: "Neues Spiel" klicken
+        GameBoard->>GameLogicHook: startGame()
+        deactivate GameBoard
+    end
+
+    User->>GameBoard: "Zur Schach-Arena" klicken
+    deactivate GameBoard
+    GameBoard->>ReactApp: handleSwitchView('chess')
+    ReactApp->>ChessArena: Ansicht rendern
+    activate ChessArena
+
+    ChessArena->>ChessAIService: chooseChessMove(fen, color)
+    activate ChessAIService
+    ChessAIService->>SimpleChessEngine: generateLegalMoves()
+    activate SimpleChessEngine
+    SimpleChessEngine-->>ChessAIService: Legale Züge
+    deactivate SimpleChessEngine
+    alt Schach-KI ist trainiert
+        ChessAIService->>ChessAIService: trainedModel.chooseMove()
+    else Schach-KI ist nicht trainiert
+        ChessAIService->>ChessAIService: Heuristischen Zug wählen
+    end
+    ChessAIService-->>ChessArena: Zugvorschlag
+    deactivate ChessAIService
+    ChessArena->>ChessArena: Zug ausführen / anzeigen
+    deactivate ChessArena
+    deactivate ReactApp
 ```
 
 ---
