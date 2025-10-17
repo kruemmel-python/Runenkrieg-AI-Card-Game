@@ -1,6 +1,76 @@
 import { ElementType } from './types';
 
-export const ELEMENTS = ["Feuer", "Wasser", "Erde", "Luft", "Blitz", "Eis", "Magie"] as const;
+export const ELEMENTS = [
+    "Feuer",
+    "Wasser",
+    "Erde",
+    "Luft",
+    "Blitz",
+    "Eis",
+    "Magie",
+    "Schatten",
+    "Licht",
+    "Chaos"
+] as const;
+
+export const CARD_TYPES = [
+    {
+        name: "Artefakt" as const,
+        description: "Dauerhafte Objekte, die das Spielfeld verstärken und langfristige Buffs erzeugen.",
+        defaultCharges: undefined,
+    },
+    {
+        name: "Beschwörung" as const,
+        description: "Temporäre Einheiten mit begrenzter Lebensdauer, die Schaden absorbieren oder verursachen.",
+        defaultLifespan: 3,
+    },
+    {
+        name: "Runenstein" as const,
+        description: "Einmalige Power-Karten, die Wetter oder globale Effekte auslösen.",
+        defaultCharges: 1,
+    },
+    {
+        name: "Verbündeter" as const,
+        description: "Unterstützer, die Synergien verstärken und Elementarresonanz fördern.",
+        defaultCharges: undefined,
+    },
+    {
+        name: "Segen/Fluch" as const,
+        description: "Temporäre Modifikatoren, die Spieler oder Arena beeinflussen.",
+        defaultLifespan: 2,
+    },
+] as const;
+
+export const ABILITY_MECHANIC_DEFINITIONS = {
+    "Ketteneffekte": {
+        summary: "Folgeaktionen nach Aktivierung bestimmter Karten.",
+        weight: 1.5,
+    },
+    "Elementarresonanz": {
+        summary: "Bonusschaden, wenn mehrere Karten desselben Elements aktiv sind.",
+        weight: 2,
+    },
+    "Überladung": {
+        summary: "Hohe Spitzenwerte mit anschließendem Eigenrisiko.",
+        weight: 2.5,
+    },
+    "Fusion": {
+        summary: "Kombiniere Karten zu mächtigen neuen Formen.",
+        weight: 3,
+    },
+    "Wetterbindung": {
+        summary: "Stärke schwankt je nach aktuellem Wetter.",
+        weight: 1.8,
+    },
+    "Verbündeter": {
+        summary: "Verstärkt verbundene Karten desselben Themas oder Elements.",
+        weight: 1.3,
+    },
+    "Segen/Fluch": {
+        summary: "Verleiht kurzfristige Vorteile oder Nachteile auf Spieler- bzw. Arenaseite.",
+        weight: 1.1,
+    },
+} as const;
 
 export const ABILITIES = [
     "Funke",      // Stärke 0
@@ -19,15 +89,35 @@ export const ABILITIES = [
     "Avatar"      // Stärke 13 (Ass)
 ] as const;
 
+export const ABILITY_MECHANICS: Record<typeof ABILITIES[number], (keyof typeof ABILITY_MECHANIC_DEFINITIONS)[]> = {
+    "Funke": ["Ketteneffekte"],
+    "Strahl": ["Wetterbindung"],
+    "Flamme": ["Elementarresonanz"],
+    "Glut": ["Ketteneffekte"],
+    "Feuerball": ["Überladung"],
+    "Inferno": ["Elementarresonanz", "Überladung"],
+    "Nova": ["Fusion"],
+    "Supernova": ["Fusion", "Überladung"],
+    "Apokalypse": ["Fusion", "Elementarresonanz"],
+    "Weltenbrand": ["Fusion", "Überladung", "Ketteneffekte"],
+    "Akolyth": ["Verbündeter"],
+    "Priesterin": ["Segen/Fluch"],
+    "Elementar": ["Elementarresonanz", "Wetterbindung"],
+    "Avatar": ["Fusion", "Elementarresonanz", "Wetterbindung"],
+} as const;
+
 
 export const ELEMENT_HIERARCHIE: Record<ElementType, Partial<Record<ElementType, number>>> = {
-    "Wasser": {"Feuer": 3, "Erde": 1, "Luft": -3, "Blitz": -3, "Eis": 3},
-    "Feuer": {"Erde": 3, "Luft": 1, "Wasser": -3, "Eis": 1, "Blitz": 1},
-    "Erde": {"Luft": 3, "Wasser": -1, "Feuer": -3, "Blitz": 3, "Eis": 1},
-    "Luft": {"Wasser": 3, "Erde": -1, "Feuer": -3, "Eis": 3, "Blitz": -1},
-    "Blitz": {"Wasser": 3, "Erde": 1, "Feuer": 1, "Luft": -3, "Eis": -1},
-    "Eis": {"Feuer": 3, "Erde": 1, "Wasser": -3, "Luft": 1, "Blitz": 3},
-    "Magie": {"Feuer": 1, "Wasser": 1, "Erde": 1, "Luft": 1, "Blitz": 2, "Eis": 2},
+    "Wasser": {"Feuer": 3, "Erde": 1, "Luft": -3, "Blitz": -3, "Eis": 3, "Chaos": -2},
+    "Feuer": {"Erde": 3, "Luft": 1, "Wasser": -3, "Eis": 1, "Blitz": 1, "Schatten": 2},
+    "Erde": {"Luft": 3, "Wasser": -1, "Feuer": -3, "Blitz": 3, "Eis": 1, "Chaos": 1},
+    "Luft": {"Wasser": 3, "Erde": -1, "Feuer": -3, "Eis": 3, "Blitz": -1, "Schatten": -2},
+    "Blitz": {"Wasser": 3, "Erde": 1, "Feuer": 1, "Luft": -3, "Eis": -1, "Schatten": 2, "Chaos": -1},
+    "Eis": {"Feuer": 3, "Erde": 1, "Wasser": -3, "Luft": 1, "Blitz": 3, "Chaos": -2},
+    "Magie": {"Feuer": 1, "Wasser": 1, "Erde": 1, "Luft": 1, "Blitz": 2, "Eis": 2, "Schatten": 3, "Licht": -2},
+    "Schatten": {"Licht": 3, "Magie": -2, "Chaos": 1},
+    "Licht": {"Schatten": 3, "Magie": 2, "Chaos": -1},
+    "Chaos": {"Magie": 1, "Licht": 2, "Schatten": -2, "Feuer": -1, "Blitz": 2},
 };
 
 export const ELEMENT_EFFECTS: Record<ElementType, string> = {
@@ -38,7 +128,18 @@ export const ELEMENT_EFFECTS: Record<ElementType, string> = {
     "Blitz": "Effekt bei Sieg: +1 Zusätzlicher Token.",
     "Eis": "Effekt bei Sieg: -1 Gegnertoken.",
     "Magie": "Kein direkter Kampfeffekt. Beeinflusst das Spiel auf andere Weise.",
+    "Schatten": "Effekt bei Sieg: Stehle 1 Token, sofern verfügbar.",
+    "Licht": "Effekt bei Sieg: Heile 1 Token für dich oder einen Verbündeten.",
+    "Chaos": "Effekt bei Sieg: Würfle den Vorteil aus (±1 Token).",
 };
+
+export const ELEMENT_SYNERGIES = [
+    { elements: ["Wasser", "Blitz"] as ElementType[], label: "Überladung", modifier: 2, description: "Wasser leitet Blitzenergie für zusätzlichen Schaden." },
+    { elements: ["Feuer", "Erde"] as ElementType[], label: "Lavafeld", modifier: 1.5, description: "Glühende Lava erschwert gegnerische Bewegungen." },
+    { elements: ["Licht", "Schatten"] as ElementType[], label: "Balancebruch", modifier: 2.5, description: "Polarität bricht das Gleichgewicht des Gegners." },
+    { elements: ["Eis", "Luft"] as ElementType[], label: "Frostwind", modifier: 1.2, description: "Schneidender Wind verlangsamt Gegner." },
+    { elements: ["Erde", "Licht"] as ElementType[], label: "Lebendige Bastion", modifier: 1.8, description: "Die Erde wird vom Licht gestärkt und regeneriert." },
+] as const;
 
 // FIX: Removed explicit type annotation on HEROES that caused a circular dependency.
 // By using 'as const', TypeScript can infer the precise type, which is then used 
@@ -67,4 +168,7 @@ export const ELEMENT_COLORS: Record<ElementType, { from: string, to: string, ico
     "Blitz": { from: 'from-yellow-400', to: 'to-yellow-300', icon: '⚡' },
     "Eis": { from: 'from-cyan-200', to: 'to-blue-300', icon: '🧊' },
     "Magie": { from: 'from-purple-500', to: 'to-indigo-400', icon: '✨' },
+    "Schatten": { from: 'from-gray-900', to: 'to-purple-900', icon: '🜄' },
+    "Licht": { from: 'from-amber-200', to: 'to-yellow-100', icon: '🌟' },
+    "Chaos": { from: 'from-rose-500', to: 'to-fuchsia-500', icon: '🌀' },
 };
