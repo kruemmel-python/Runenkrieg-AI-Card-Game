@@ -1,11 +1,13 @@
 import {
     Card,
     RoundResult,
+    FusionDecisionSample,
     TrainedModel,
     WeatherType,
     Winner,
     HeroName,
     TrainingAnalysis,
+    TrainingRunOptions,
     GameHistoryEntry,
     ElementType,
     AbilityMechanicName,
@@ -16,6 +18,9 @@ import {
     MechanicEffectivenessInsight,
     ResamplingRecommendation,
     ValueType,
+    SerializedRunenkriegModel,
+    RunenkriegContextMetadata,
+    FusionInsight,
 } from '../types';
 import {
     ELEMENTS,
@@ -35,6 +40,7 @@ import {
     resolveMechanicEffects,
 } from './mechanicEngine';
 import { buildShuffledDeck, getRandomCardTemplate } from './cardCatalogService';
+import { computeWilsonStatsGpu } from './gpuAcceleration';
 
 const WILSON_Z = 1.96;
 
@@ -139,16 +145,76 @@ const ensureHandSize = (
     }
 };
 
-const autoFuseIfBeneficial = (hand: Card[]): boolean => {
-    const fusionCandidates = hand
+const createHandSignature = (hand: Card[]) =>
+    hand
+        .map((card) => `${card.element}-${card.wert}`)
+        .sort()
+        .join('|');
+
+const computeHistoryPressure = (history: GameHistoryEntry[], actor: 'spieler' | 'gegner') => {
+    const recent = history.slice(-3);
+    return recent.reduce((pressure, entry) => {
+        if (entry.winner === 'unentschieden') {
+            return pressure;
+        }
+        const actorWinner = actor === 'spieler' ? 'spieler' : 'gegner';
+        return entry.winner === actorWinner ? pressure - 0.2 : pressure + 0.3;
+    }, 0);
+};
+
+interface FusionDecisionContext {
+    hand: Card[];
+    hero: HeroName;
+    opponentHero: HeroName;
+    weather: WeatherType;
+    ownerTokens: number;
+    opponentTokens: number;
+    history: GameHistoryEntry[];
+    actor: 'spieler' | 'gegner';
+}
+
+const autoFuseIfBeneficial = (
+    context: FusionDecisionContext
+): { fused: boolean; record: FusionDecisionSample } => {
+    const fusionCandidates = context.hand
         .map((card, index) => ({ card, index }))
         .filter((entry) => entry.card.mechanics.includes('Fusion'));
 
+    const handSignature = createHandSignature(context.hand);
+    const historyPressure = computeHistoryPressure(context.history, context.actor);
+    const tokenDelta = context.ownerTokens - context.opponentTokens;
+    const baseRecord: FusionDecisionSample = {
+        actor: context.actor,
+        hero: context.hero,
+        opponentHero: context.opponentHero,
+        weather: context.weather,
+        tokenDelta,
+        handSignature,
+        fusedCard: null,
+        gain: 0,
+        synergyScore: 0,
+        weatherScore: 0,
+        historyPressure,
+        decision: 'skip',
+    };
+
     if (fusionCandidates.length < 2) {
-        return false;
+        return { fused: false, record: baseRecord };
     }
 
-    let bestPair: { indices: [number, number]; fused: Card; gain: number } | null = null;
+    let bestPair:
+        | {
+              indices: [number, number];
+              fused: Card;
+              baseGain: number;
+              elementSynergy: number;
+              synergyScore: number;
+              weatherScore: number;
+              heroBonus: number;
+              tokenPressure: number;
+              totalScore: number;
+          }
+        | null = null;
 
     for (let i = 0; i < fusionCandidates.length - 1; i++) {
         for (let j = i + 1; j < fusionCandidates.length; j++) {
@@ -157,29 +223,78 @@ const autoFuseIfBeneficial = (hand: Card[]): boolean => {
             const fusedCard = createFusionCard(first.card, second.card);
             const fusedAbilityIndex = abilityIndex(fusedCard.wert);
             const baseGain = fusedAbilityIndex - Math.max(abilityIndex(first.card.wert), abilityIndex(second.card.wert));
-            const synergyBoost = first.card.element === second.card.element ? 0.5 : 0;
-            const totalGain = baseGain + synergyBoost;
+            const elementSynergy = first.card.element === second.card.element ? 0.5 : 0;
+            const remainingHand = context.hand.filter((_, index) => index !== first.index && index !== second.index);
+            const synergyScore = evaluateElementSynergy(
+                fusedCard,
+                remainingHand,
+                context.history,
+                context.actor === 'spieler' ? 'player' : 'ai'
+            );
+            const weatherScore = evaluateRiskAndWeather(
+                fusedCard,
+                context.ownerTokens,
+                context.opponentTokens,
+                context.weather
+            );
+            const heroBonus = HEROES[context.hero].Element === fusedCard.element ? HEROES[context.hero].Bonus : 0;
+            const tokenPressure = (context.opponentTokens - context.ownerTokens) * 0.12;
+            const totalScore =
+                baseGain +
+                elementSynergy +
+                synergyScore * 0.5 +
+                weatherScore * 0.35 +
+                heroBonus * 0.25 +
+                historyPressure +
+                tokenPressure;
 
-            if (!bestPair || totalGain > bestPair.gain) {
+            if (!bestPair || totalScore > bestPair.totalScore) {
                 bestPair = {
                     indices: [first.index, second.index],
                     fused: fusedCard,
-                    gain: totalGain,
+                    baseGain,
+                    elementSynergy,
+                    synergyScore,
+                    weatherScore,
+                    heroBonus,
+                    tokenPressure,
+                    totalScore,
                 };
             }
         }
     }
 
-    if (bestPair && bestPair.gain >= 1) {
-        const indices = [...bestPair.indices].sort((a, b) => b - a);
-        indices.forEach((index) => {
-            hand.splice(index, 1);
-        });
-        hand.push(bestPair.fused);
-        return true;
+    if (!bestPair) {
+        return { fused: false, record: baseRecord };
     }
 
-    return false;
+    baseRecord.fusedCard = `${bestPair.fused.element} ${bestPair.fused.wert}`;
+    baseRecord.gain = bestPair.totalScore;
+    baseRecord.synergyScore = bestPair.synergyScore + bestPair.elementSynergy;
+    baseRecord.weatherScore = bestPair.weatherScore;
+
+    let threshold = 1;
+    threshold -= Math.min(0.6, Math.max(0, bestPair.tokenPressure));
+    threshold -= Math.min(0.4, Math.max(0, historyPressure));
+    if (context.actor === 'gegner') {
+        threshold += 0.1;
+    }
+    if (context.history.length < 2) {
+        threshold += 0.05;
+    }
+    threshold = Math.max(0.2, threshold);
+
+    if (bestPair.totalScore >= threshold) {
+        const indices = [...bestPair.indices].sort((a, b) => b - a);
+        indices.forEach((index) => {
+            context.hand.splice(index, 1);
+        });
+        context.hand.push(bestPair.fused);
+        baseRecord.decision = 'fuse';
+        return { fused: true, record: baseRecord };
+    }
+
+    return { fused: false, record: baseRecord };
 };
 
 const scoreCardForSelection = (
@@ -273,6 +388,87 @@ const buildContextKey = (params: {
 }): string => {
     const clampedDelta = clampTokenDelta(params.tokenDelta);
     return `${params.playerCard}|${params.weather}|${params.playerHero}vs${params.aiHero}|delta:${clampedDelta}`;
+};
+
+const buildFusionInsights = (samples: FusionDecisionSample[]): FusionInsight[] => {
+    if (samples.length === 0) {
+        return [];
+    }
+
+    const buckets = new Map<
+        string,
+        {
+            actor: 'spieler' | 'gegner';
+            hero: HeroName;
+            opponentHero: HeroName;
+            weather: WeatherType;
+            tokenDelta: number;
+            fusedCard: string | null;
+            total: number;
+            fuseCount: number;
+            gainSum: number;
+        }
+    >();
+
+    for (const sample of samples) {
+        const clampedDelta = clampTokenDelta(sample.tokenDelta);
+        const contextKey = `${sample.actor}|${sample.hero}vs${sample.opponentHero}|${sample.weather}|delta:${clampedDelta}|card:${sample.fusedCard ?? 'none'}`;
+        let bucket = buckets.get(contextKey);
+        if (!bucket) {
+            bucket = {
+                actor: sample.actor,
+                hero: sample.hero,
+                opponentHero: sample.opponentHero,
+                weather: sample.weather,
+                tokenDelta: clampedDelta,
+                fusedCard: sample.fusedCard,
+                total: 0,
+                fuseCount: 0,
+                gainSum: 0,
+            };
+            buckets.set(contextKey, bucket);
+        }
+        bucket.total += 1;
+        if (sample.decision === 'fuse') {
+            bucket.fuseCount += 1;
+        }
+        bucket.gainSum += sample.gain;
+    }
+
+    const insights: FusionInsight[] = [];
+    buckets.forEach((bucket, contextKey) => {
+        if (bucket.total < 3) {
+            return;
+        }
+        if (bucket.fusedCard === null && bucket.fuseCount === 0) {
+            return;
+        }
+
+        const fusionRate = bucket.fuseCount / bucket.total;
+        const averageGain = bucket.gainSum / Math.max(1, bucket.total);
+        const recommendation = fusionRate >= 0.55 || (fusionRate >= 0.35 && averageGain >= 1)
+            ? 'fuse'
+            : 'hold';
+
+        insights.push({
+            contextKey,
+            actor: bucket.actor,
+            hero: bucket.hero,
+            opponentHero: bucket.opponentHero,
+            weather: bucket.weather,
+            tokenDelta: bucket.tokenDelta,
+            fusedCard: bucket.fusedCard,
+            fusionRate,
+            averageGain,
+            observations: bucket.total,
+            recommendation,
+        });
+    });
+
+    insights.sort(
+        (a, b) => b.fusionRate * (b.averageGain + 1) - a.fusionRate * (a.averageGain + 1)
+    );
+    return insights.slice(0, 24);
 };
 
 // Focused contexts derived from recent training analysis to reinforce underperforming matchups
@@ -556,18 +752,7 @@ const FOCUS_CONTEXT_INDEX = WEAK_CONTEXT_FOCUS.reduce<
     return map;
 }, new Map());
 
-type ContextMetadata = {
-    bestCardKey: string;
-    observations: number;
-    wilsonLower: number;
-    wilsonUpper: number;
-    entropy: number;
-    baselineWinRate: number;
-    bestWinRate: number;
-    consolidationStage: 'none' | 'provisional' | 'stable';
-    weaknessPenalty: number;
-    preferredResponses?: string[];
-};
+type ContextMetadata = RunenkriegContextMetadata;
 
 function wilsonInterval(wins: number, trials: number, z: number = WILSON_Z) {
     if (trials === 0) {
@@ -820,22 +1005,86 @@ const simulateFocusedRound = (
     };
 };
 
-const augmentWithFocusRounds = (numGames: number, data: RoundResult[]): void => {
+interface SimulationOptions {
+    chunkSize?: number;
+    yieldDelayMs?: number;
+    onProgress?: (completedGames: number, totalGames: number) => void;
+    signal?: AbortSignal;
+}
+
+const DEFAULT_SIMULATION_YIELD_DELAY_MS = 16;
+
+const waitFor = (ms: number) =>
+    new Promise<void>((resolve) => {
+        setTimeout(resolve, ms);
+    });
+
+const ensureSimulationNotAborted = (signal?: AbortSignal) => {
+    if (signal?.aborted) {
+        const reason = signal.reason ?? 'Simulation abgebrochen.';
+        throw reason instanceof Error ? reason : new Error(String(reason));
+    }
+};
+
+const yieldToBrowser = async (
+    step: number,
+    chunkSize: number,
+    delayMs: number,
+    signal?: AbortSignal
+) => {
+    ensureSimulationNotAborted(signal);
+    if (step % chunkSize === 0) {
+        await waitFor(delayMs);
+        ensureSimulationNotAborted(signal);
+    }
+};
+
+const augmentWithFocusRounds = async (
+    numGames: number,
+    data: RoundResult[],
+    controls: { chunkSize: number; yieldDelayMs: number; signal?: AbortSignal }
+): Promise<void> => {
     const baseGames = Math.max(1, numGames);
-    WEAK_CONTEXT_FOCUS.forEach((detail, index) => {
+    let produced = 0;
+    for (let index = 0; index < WEAK_CONTEXT_FOCUS.length; index++) {
+        const detail = WEAK_CONTEXT_FOCUS[index];
         const samples = Math.max(3, Math.round(baseGames * detail.sampleRate));
         for (let i = 0; i < samples; i++) {
+            ensureSimulationNotAborted(controls.signal);
             data.push(simulateFocusedRound(detail, index * 1000 + i));
+            produced += 1;
+            if (produced % controls.chunkSize === 0) {
+                await yieldToBrowser(produced, controls.chunkSize, controls.yieldDelayMs, controls.signal);
+            }
         }
-    });
+    }
+
+    if (produced % controls.chunkSize !== 0) {
+        await yieldToBrowser(produced, controls.chunkSize, controls.yieldDelayMs, controls.signal);
+    }
 };
 
 
-export function simulateGames(numGames: number): RoundResult[] {
+export async function simulateGames(
+    numGames: number,
+    options: SimulationOptions = {}
+): Promise<RoundResult[]> {
+    const {
+        chunkSize: requestedChunkSize,
+        yieldDelayMs = DEFAULT_SIMULATION_YIELD_DELAY_MS,
+        onProgress,
+        signal,
+    } = options;
+
+    const computedChunk = Math.ceil(Math.max(1, numGames) / 25);
+    const chunkSize = Math.max(1, requestedChunkSize ?? computedChunk);
+    const delay = Math.max(0, yieldDelayMs);
+
     const allData: RoundResult[] = [];
     const heroNames = Object.keys(HEROES) as HeroName[];
 
     for (let i = 0; i < numGames; i++) {
+        ensureSimulationNotAborted(signal);
         const deck = buildShuffledDeck();
         let playerHand = deck.slice(0, 4);
         let aiHand = deck.slice(4, 8);
@@ -864,8 +1113,24 @@ export function simulateGames(numGames: number): RoundResult[] {
                 Math.floor(Math.random() * Object.keys(WEATHER_EFFECTS).length)
             ] as WeatherType;
 
+            const roundFusionDecisions: FusionDecisionSample[] = [];
+
             let playerFused = false;
-            while (autoFuseIfBeneficial(playerHand)) {
+            while (true) {
+                const result = autoFuseIfBeneficial({
+                    hand: playerHand,
+                    hero: playerHero,
+                    opponentHero: aiHero,
+                    weather,
+                    ownerTokens: playerTokens,
+                    opponentTokens: aiTokens,
+                    history,
+                    actor: 'spieler',
+                });
+                roundFusionDecisions.push(result.record);
+                if (!result.fused) {
+                    break;
+                }
                 playerFused = true;
             }
             if (playerFused) {
@@ -873,7 +1138,21 @@ export function simulateGames(numGames: number): RoundResult[] {
             }
 
             let aiFused = false;
-            while (autoFuseIfBeneficial(aiHand)) {
+            while (true) {
+                const result = autoFuseIfBeneficial({
+                    hand: aiHand,
+                    hero: aiHero,
+                    opponentHero: playerHero,
+                    weather,
+                    ownerTokens: aiTokens,
+                    opponentTokens: playerTokens,
+                    history,
+                    actor: 'gegner',
+                });
+                roundFusionDecisions.push(result.record);
+                if (!result.fused) {
+                    break;
+                }
                 aiFused = true;
             }
             if (aiFused) {
@@ -954,6 +1233,7 @@ export function simulateGames(numGames: number): RoundResult[] {
                 spieler_held: playerHero,
                 gegner_held: aiHero,
                 gewinner: winner,
+                fusionDecisions: roundFusionDecisions,
             });
 
             history.push({
@@ -970,18 +1250,74 @@ export function simulateGames(numGames: number): RoundResult[] {
             ensureHandSize(aiHand, talon, 'gegner');
 
             roundsPlayed += 1;
+            ensureSimulationNotAborted(signal);
         }
+
+        onProgress?.(i + 1, numGames);
+        await yieldToBrowser(i + 1, chunkSize, delay, signal);
     }
-    augmentWithFocusRounds(numGames, allData);
+
+    if (numGames === 0) {
+        onProgress?.(0, 0);
+    }
+    await augmentWithFocusRounds(numGames, allData, {
+        chunkSize,
+        yieldDelayMs: delay,
+        signal,
+    });
     return allData;
 }
 
 
 // --- Training Logic (now context-aware) ---
 
+const GPU_WILSON_STRIDE = 5;
+const INITIALIZATION_PROGRESS_SHARE = 0.05;
+const MIN_SIMULATION_PROGRESS_STEPS = 40;
+const MIN_CONTEXT_PROGRESS_STEPS = 30;
+
+const computeYieldInterval = (total: number, desiredSteps: number) =>
+    Math.max(1, Math.floor(Math.max(1, total) / Math.max(1, desiredSteps)));
+
+const yieldDuringTraining = async (iteration: number, interval: number) => {
+    if (interval > 0 && iteration % interval === 0) {
+        await waitFor(0);
+    }
+};
+
 // This builds a model: for each (player card + weather), what AI card has the best win rate?
-export function trainModel(simulationData: RoundResult[]): TrainedModel {
+export async function trainModel(
+    simulationData: RoundResult[],
+    options: TrainingRunOptions = {}
+): Promise<TrainedModel> {
+    const { onProgress, preferGpu = false, baseModel } = options;
     const modelData = new Map<string, Map<string, { wins: number; total: number }>>();
+    const contextMetadata = new Map<string, ContextMetadata>();
+    const hasBaseModel = Boolean(baseModel);
+    const fusionSamples: FusionDecisionSample[] = [];
+
+    if (baseModel) {
+        try {
+            const { modelData: existingData, metadataMap } = inflateSerializedRunenkriegModel(baseModel);
+            existingData.forEach((aiMap, contextKey) => {
+                const clonedMap = new Map<string, { wins: number; total: number }>();
+                aiMap.forEach((stats, cardKey) => {
+                    clonedMap.set(cardKey, { wins: stats.wins, total: stats.total });
+                });
+                modelData.set(contextKey, clonedMap);
+            });
+            metadataMap.forEach((metadata, contextKey) => {
+                contextMetadata.set(contextKey, {
+                    ...metadata,
+                    preferredResponses: metadata.preferredResponses
+                        ? [...metadata.preferredResponses]
+                        : undefined,
+                });
+            });
+        } catch (error) {
+            console.warn('Fortführung des vorhandenen Runenkrieg-Modells fehlgeschlagen:', error);
+        }
+    }
 
     for (const [contextKey, focusDetails] of FOCUS_CONTEXT_INDEX.entries()) {
         if (!modelData.has(contextKey)) {
@@ -989,17 +1325,38 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         }
         const aiCardMap = modelData.get(contextKey)!;
         focusDetails.forEach((detail) => {
-            if (!aiCardMap.has(detail.aiCard)) {
-                aiCardMap.set(detail.aiCard, { wins: 0, total: 0 });
+            let stats = aiCardMap.get(detail.aiCard);
+            let isNewEntry = false;
+            if (!stats) {
+                stats = { wins: 0, total: 0 };
+                aiCardMap.set(detail.aiCard, stats);
+                isNewEntry = true;
             }
-            const stats = aiCardMap.get(detail.aiCard)!;
-            const priorWins = Math.round(detail.priorWeight * detail.targetAiWinRate);
-            stats.total += detail.priorWeight;
-            stats.wins += priorWins;
+            if (!hasBaseModel || isNewEntry) {
+                const priorWins = Math.round(detail.priorWeight * detail.targetAiWinRate);
+                stats.total += detail.priorWeight;
+                stats.wins += priorWins;
+            }
         });
     }
 
-    for (const round of simulationData) {
+    onProgress?.({
+        phase: 'initializing',
+        progress: INITIALIZATION_PROGRESS_SHARE,
+        message: 'Kontextbasierte Priors initialisiert.',
+    });
+
+    const totalRounds = simulationData.length;
+    const safeTotalRounds = Math.max(1, totalRounds);
+    const simulationYieldInterval = computeYieldInterval(totalRounds, MIN_SIMULATION_PROGRESS_STEPS);
+    const aggregationShare = totalRounds > 0 ? 0.45 : 0;
+    const analysisShare = Math.max(0, 1 - INITIALIZATION_PROGRESS_SHARE - aggregationShare);
+
+    for (let i = 0; i < totalRounds; i++) {
+        const round = simulationData[i];
+        if (round.fusionDecisions) {
+            fusionSamples.push(...round.fusionDecisions);
+        }
         // UPDATED: Context-aware key
         const tokenDelta = round.spieler_token_vorher - round.gegner_token_vorher;
         const clampedDelta = clampTokenDelta(tokenDelta);
@@ -1021,6 +1378,30 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         if (round.gewinner === 'gegner') {
             stats.wins += 1;
         }
+
+        if ((i + 1) % simulationYieldInterval === 0 || i === totalRounds - 1) {
+            const ratio = (i + 1) / safeTotalRounds;
+            onProgress?.({
+                phase: 'aggregating',
+                progress: INITIALIZATION_PROGRESS_SHARE + aggregationShare * ratio,
+                message: `Verarbeite Simulation ${i + 1} von ${safeTotalRounds}`,
+            });
+            await yieldDuringTraining(i + 1, simulationYieldInterval);
+        }
+    }
+
+    if (totalRounds === 0) {
+        onProgress?.({
+            phase: 'aggregating',
+            progress: INITIALIZATION_PROGRESS_SHARE,
+            message: 'Keine Simulationsdaten – nutze Fokus-Prioren.',
+        });
+    } else {
+        onProgress?.({
+            phase: 'aggregating',
+            progress: INITIALIZATION_PROGRESS_SHARE + aggregationShare,
+            message: 'Simulationen verarbeitet. Starte Kontextanalyse...',
+        });
     }
 
     let contextsWithSolidData = 0;
@@ -1042,10 +1423,16 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         totalWithTrials: number;
         weatherCounts: Map<WeatherType, number>;
     }>();
-    const contextMetadata = new Map<string, ContextMetadata>();
     const entropyAlerts: ContextInsight[] = [];
+    const contextEntries = Array.from(modelData.entries());
+    const contextEntryCount = contextEntries.length;
+    const safeContextTotal = Math.max(1, contextEntryCount);
+    const contextYieldInterval = computeYieldInterval(contextEntryCount, MIN_CONTEXT_PROGRESS_STEPS);
+    let gpuUtilized = false;
+    let gpuAvailableForContexts = preferGpu;
 
-    for (const [contextKey, aiCardMap] of modelData.entries()) {
+    for (let contextIndex = 0; contextIndex < contextEntryCount; contextIndex++) {
+        const [contextKey, aiCardMap] = contextEntries[contextIndex];
         const [playerCardLabel, weatherString, heroMatchupString, deltaString] = contextKey.split('|');
         const weather = weatherString as WeatherType;
         const [playerHero, aiHero] = heroMatchupString.split('vs') as [HeroName, HeroName];
@@ -1066,23 +1453,74 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         }[] = [];
         const mechanicUsage = new Map<AbilityMechanicName, { wins: number; total: number }>();
 
-        for (const [cardKey, stats] of aiCardMap.entries()) {
-            if (stats.total === 0) continue;
+        const statsList: Array<{ key: string; stats: { wins: number; total: number } }> = [];
+        aiCardMap.forEach((stats, cardKey) => {
+            statsList.push({ key: cardKey, stats });
+        });
+
+        const winsArray = new Float32Array(statsList.length);
+        const totalsArray = new Float32Array(statsList.length);
+        for (let idx = 0; idx < statsList.length; idx++) {
+            winsArray[idx] = statsList[idx].stats.wins;
+            totalsArray[idx] = statsList[idx].stats.total;
+        }
+
+        let gpuStats: Float32Array | null = null;
+        if (gpuAvailableForContexts && statsList.length >= 4) {
+            try {
+                gpuStats = await computeWilsonStatsGpu(winsArray, totalsArray);
+                if (gpuStats) {
+                    gpuUtilized = true;
+                } else {
+                    gpuAvailableForContexts = false;
+                }
+            } catch (error) {
+                console.warn('GPU-gestützte Kontextauswertung fehlgeschlagen, wechsle zu CPU.', error);
+                gpuAvailableForContexts = false;
+                gpuStats = null;
+            }
+        }
+
+        for (let idx = 0; idx < statsList.length; idx++) {
+            const { key: cardKey, stats } = statsList[idx];
+            if (stats.total === 0) {
+                continue;
+            }
 
             totalTrials += stats.total;
             totalWins += stats.wins;
 
-            const interval = wilsonInterval(stats.wins, stats.total);
-            const winRate = stats.wins / stats.total;
+            let winRate: number;
+            let wilsonLower: number;
+            let wilsonUpper: number;
+            let intervalWidth: number;
+            let evidenceScoreValue: number;
+
+            if (gpuStats && gpuStats.length >= (idx + 1) * GPU_WILSON_STRIDE) {
+                const baseIndex = idx * GPU_WILSON_STRIDE;
+                winRate = gpuStats[baseIndex];
+                wilsonLower = gpuStats[baseIndex + 1];
+                wilsonUpper = gpuStats[baseIndex + 2];
+                intervalWidth = gpuStats[baseIndex + 3];
+                evidenceScoreValue = gpuStats[baseIndex + 4];
+            } else {
+                const interval = wilsonInterval(stats.wins, stats.total);
+                winRate = stats.wins / stats.total;
+                wilsonLower = interval.lower;
+                wilsonUpper = interval.upper;
+                intervalWidth = interval.width;
+                evidenceScoreValue = computeEvidenceScore(interval.lower, interval.upper);
+            }
+
             candidateSummaries.push({
                 cardKey,
                 wins: stats.wins,
                 total: stats.total,
                 winRate,
-                wilsonLower: interval.lower,
-                wilsonUpper: interval.upper,
-                intervalWidth: interval.width,
-                evidenceScore: computeEvidenceScore(interval.lower, interval.upper),
+                wilsonLower,
+                wilsonUpper,
+                intervalWidth,
+                evidenceScore: evidenceScoreValue,
             });
 
             const { ability: aiAbility } = parseCardLabel(cardKey);
@@ -1257,9 +1695,23 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
             record.weatherCounts.set(weather, (record.weatherCounts.get(weather) ?? 0) + usage.total);
             mechanicStats.set(mechanic, record);
         });
+
+        const ratio = (contextIndex + 1) / safeContextTotal;
+        const progressValue = INITIALIZATION_PROGRESS_SHARE + aggregationShare + analysisShare * ratio;
+        const gpuMessage = preferGpu
+            ? gpuUtilized
+                ? 'Analysiere Kontexte (GPU aktiv)'
+                : 'Analysiere Kontexte (GPU bevorzugt)'
+            : 'Analysiere Kontexte';
+        onProgress?.({
+            phase: 'analyzing',
+            progress: Math.min(0.999, progressValue),
+            message: `${gpuMessage} – ${contextIndex + 1}/${safeContextTotal}`,
+        });
+        await yieldDuringTraining(contextIndex + 1, contextYieldInterval);
     }
 
-    const totalContexts = modelData.size;
+    const totalContexts = contextDetails.length;
     const averageBestWinRate = contextsWithBestCard > 0 ? winRateSum / contextsWithBestCard : 0;
 
     const topContexts = contextDetails
@@ -1378,6 +1830,8 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         })
         .slice(0, 12);
 
+    const fusionInsights = buildFusionInsights(fusionSamples);
+
     const analysis: TrainingAnalysis = {
         totalContexts,
         contextsWithSolidData,
@@ -1393,8 +1847,59 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         mechanicEffectiveness,
         resamplingPlan,
         decisionEntropyAlerts: entropyAlerts.slice(0, 10),
+        fusionInsights,
     };
 
+    const trainedModel = buildRunenkriegModel(modelData, contextMetadata, analysis);
+
+    const finalMessage = preferGpu
+        ? gpuUtilized
+            ? 'Training abgeschlossen. GPU-Beschleunigung aktiv.'
+            : 'Training abgeschlossen. GPU nicht verfügbar – CPU genutzt.'
+        : 'Training abgeschlossen.';
+    onProgress?.({ phase: 'finalizing', progress: 1, message: finalMessage });
+
+    return trainedModel;
+}
+
+const RUNENKRIEG_MODEL_VERSION = 1;
+
+function inflateSerializedRunenkriegModel(
+    serialized: SerializedRunenkriegModel
+): {
+    modelData: Map<string, Map<string, { wins: number; total: number }>>;
+    metadataMap: Map<string, ContextMetadata>;
+} {
+    const modelData = new Map<string, Map<string, { wins: number; total: number }>>();
+    const metadataMap = new Map<string, ContextMetadata>();
+
+    const entries = Object.entries(serialized.contexts ?? {});
+    for (const [contextKey, contextValue] of entries) {
+        const aiMap = new Map<string, { wins: number; total: number }>();
+        const cardEntries = Object.entries(contextValue?.aiCards ?? {});
+        for (const [cardKey, stats] of cardEntries) {
+            aiMap.set(cardKey, { wins: stats.wins, total: stats.total });
+        }
+        modelData.set(contextKey, aiMap);
+
+        if (contextValue?.metadata) {
+            metadataMap.set(contextKey, {
+                ...contextValue.metadata,
+                preferredResponses: contextValue.metadata.preferredResponses
+                    ? [...contextValue.metadata.preferredResponses]
+                    : undefined,
+            });
+        }
+    }
+
+    return { modelData, metadataMap };
+}
+
+function buildRunenkriegModel(
+    modelData: Map<string, Map<string, { wins: number; total: number }>>,
+    contextMetadata: Map<string, ContextMetadata>,
+    analysis: TrainingAnalysis
+): TrainedModel {
     const predict = (playerCard: Card, aiHand: Card[], gameState: any): Card => {
         const tokenDelta = (gameState.playerTokens ?? 0) - (gameState.aiTokens ?? 0);
         const clampedDelta = clampTokenDelta(tokenDelta);
@@ -1511,5 +2016,52 @@ export function trainModel(simulationData: RoundResult[]): TrainedModel {
         return topCandidate.card;
     };
 
-    return { predict, analysis };
+    const serialize = (): SerializedRunenkriegModel => {
+        const contexts: SerializedRunenkriegModel['contexts'] = {};
+        modelData.forEach((aiCardMap, contextKey) => {
+            const aiCards: Record<string, { wins: number; total: number }> = {};
+            aiCardMap.forEach((stats, cardKey) => {
+                aiCards[cardKey] = { wins: stats.wins, total: stats.total };
+            });
+            const metadata = contextMetadata.get(contextKey);
+            contexts[contextKey] = {
+                aiCards,
+                ...(metadata
+                    ? {
+                          metadata: {
+                              ...metadata,
+                              preferredResponses: metadata.preferredResponses
+                                  ? [...metadata.preferredResponses]
+                                  : undefined,
+                          },
+                      }
+                    : {}),
+            };
+        });
+
+        return {
+            version: RUNENKRIEG_MODEL_VERSION,
+            generatedAt: new Date().toISOString(),
+            contexts,
+            analysis: JSON.parse(JSON.stringify(analysis)) as TrainingAnalysis,
+        };
+    };
+
+    return { predict, analysis, serialize };
+}
+
+export function hydrateTrainedModel(serialized: SerializedRunenkriegModel): TrainedModel {
+    if (!serialized || typeof serialized !== 'object') {
+        throw new Error('Ungültiges Runenkrieg-Modellformat.');
+    }
+
+    if (serialized.version !== RUNENKRIEG_MODEL_VERSION) {
+        console.warn(
+            `Geladenes Runenkrieg-Modell hat Version ${serialized.version}, erwartet ${RUNENKRIEG_MODEL_VERSION}.`
+        );
+    }
+
+    const { modelData, metadataMap } = inflateSerializedRunenkriegModel(serialized);
+
+    return buildRunenkriegModel(modelData, metadataMap, serialized.analysis);
 }

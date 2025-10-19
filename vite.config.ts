@@ -8,6 +8,12 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        fs: {
+          allow: [
+            path.resolve(__dirname),
+            path.resolve(__dirname, '..', 'React-Retro-Arcade-Space-Shooter'),
+          ],
+        },
       },
       plugins: [react()],
       define: {
@@ -17,7 +23,17 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
-        }
+          react: path.resolve(__dirname, 'node_modules/react'),
+          'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+          'react/jsx-runtime': path.resolve(
+            __dirname,
+            'node_modules/react/jsx-runtime.js',
+          ),
+          'react/jsx-dev-runtime': path.resolve(
+            __dirname,
+            'node_modules/react/jsx-dev-runtime.js',
+          ),
+        },
       }
     };
 });
