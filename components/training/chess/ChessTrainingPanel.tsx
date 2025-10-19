@@ -16,7 +16,7 @@ import {
 } from '../../../services/chessAiService';
 import { summarizeChessSimulations } from '../../../services/chessTrainingService';
 import Spinner from '../../Spinner';
-import { formatNumber, formatPercent, formatSigned } from '../utils/formatting';
+import { formatNumber, formatPercent } from '../utils/formatting';
 
 interface ChessTrainingContextValue {
   chessSimulationCount: number;
@@ -415,12 +415,19 @@ export const ChessTrainingPanel: React.FC<{ onSwitchView: (view: 'card' | 'train
           <h3 className="text-2xl font-bold text-white mb-4">KI-Einblicke</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {insights.map((insight, index) => (
-              <div key={`${insight.focus}-${index}`} className="bg-slate-800 p-4 rounded-lg border border-slate-700">
-                <h4 className="text-lg font-semibold text-slate-100">{insight.focus}</h4>
-                <p className="text-sm text-slate-300 mt-2">{insight.summary}</p>
+              <div
+                key={`${insight.fen}-${insight.recommendedMove}-${index}`}
+                className="bg-slate-800 p-4 rounded-lg border border-slate-700"
+              >
+                <h4 className="text-lg font-semibold text-slate-100">
+                  Empfohlener Zug {insight.recommendedMove.toUpperCase()}
+                </h4>
+                <p className="text-sm text-slate-300 mt-2 break-words">
+                  Stellung (FEN): <span className="text-slate-200">{insight.fen}</span>
+                </p>
                 <p className="text-xs text-slate-400 mt-2">
-                  Erfolgsquote {formatPercent(insight.successRate)} · Δ Material{' '}
-                  {formatSigned(insight.materialSwing, 1)} · Beobachtungen {formatNumber(insight.observations)}
+                  Erwarteter Score {formatPercent(insight.expectedScore)} · Vertrauen{' '}
+                  {formatPercent(insight.confidence)} · Stichproben {formatNumber(insight.sampleSize)}
                 </p>
               </div>
             ))}
