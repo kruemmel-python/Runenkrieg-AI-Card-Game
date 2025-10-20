@@ -16,7 +16,7 @@ import {
 } from '../../../services/chessAiService';
 import { summarizeChessSimulations } from '../../../services/chessTrainingService';
 import Spinner from '../../Spinner';
-import { formatNumber, formatPercent } from '../utils/formatting';
+import { formatNumber, formatPercent, formatSigned } from '../utils/formatting';
 
 interface ChessTrainingContextValue {
   chessSimulationCount: number;
