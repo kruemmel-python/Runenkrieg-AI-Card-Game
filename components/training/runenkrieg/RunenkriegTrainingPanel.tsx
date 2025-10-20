@@ -2,6 +2,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -35,6 +36,10 @@ import {
   formatSigned,
   formatTokenDelta,
 } from '../utils/formatting';
+import {
+  BanditPolicySummary,
+  readBanditPolicySummary,
+} from '../../../services/runenkrieg/banditStorage';
 
 export type SimulationStatusTone = 'idle' | 'progress' | 'success' | 'error';
 
@@ -69,6 +74,8 @@ interface RunenkriegTrainingContextValue {
   runenkriegModelInputRef: React.RefObject<HTMLInputElement>;
   handleModelImport: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleModelUploadClick: () => void;
+  banditSummary: BanditPolicySummary;
+  refreshBanditSummary: () => void;
 }
 
 const RunenkriegTrainingContext = createContext<RunenkriegTrainingContextValue | undefined>(
@@ -93,10 +100,19 @@ const useRunenkriegTrainingController = (): RunenkriegTrainingContextValue => {
   const [aiStatus, setAiStatus] = useState<string>(
     isAiTrained() ? 'KI ist trainiert und aktiv.' : 'KI nutzt zufällige Züge.'
   );
+  const [banditSummary, setBanditSummary] = useState<BanditPolicySummary>(readBanditPolicySummary);
   const [onlyHighTokenDelta, setOnlyHighTokenDelta] = useState<boolean>(false);
   const [focusWeather, setFocusWeather] = useState<'all' | 'regenWind'>('all');
   const [onlyDragonDuels, setOnlyDragonDuels] = useState<boolean>(false);
   const runenkriegModelInputRef = useRef<HTMLInputElement | null>(null);
+
+  const refreshBanditSummary = useCallback(() => {
+    setBanditSummary(readBanditPolicySummary());
+  }, []);
+
+  useEffect(() => {
+    refreshBanditSummary();
+  }, [refreshBanditSummary]);
 
   const handleSimulate = useCallback(async () => {
     setIsSimulating(true);
@@ -214,6 +230,8 @@ const useRunenkriegTrainingController = (): RunenkriegTrainingContextValue => {
     runenkriegModelInputRef,
     handleModelImport,
     handleModelUploadClick,
+    banditSummary,
+    refreshBanditSummary,
   };
 };
 
@@ -399,6 +417,8 @@ export const RunenkriegTrainingPanel: React.FC<{ onSwitchView: (view: 'card' | '
     runenkriegModelInputRef,
     handleModelImport,
     handleModelUploadClick,
+    banditSummary,
+    refreshBanditSummary,
   } = useRunenkriegTraining();
 
   const filters = useMemo(
@@ -417,7 +437,24 @@ export const RunenkriegTrainingPanel: React.FC<{ onSwitchView: (view: 'card' | '
 
       <div className="mb-6 p-4 bg-slate-800 rounded-lg">
         <h2 className="text-xl font-semibold mb-2 text-cyan-300">Aktueller KI-Status</h2>
-        <p className="text-slate-300">{aiStatus}</p>
+        <p className="text-slate-300 mb-3">{aiStatus}</p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-sm text-slate-400">
+          <div>
+            <span className="text-indigo-300 font-semibold">{formatNumber(banditSummary.contextCount)}</span>{' '}
+            Lernkontexte ·{' '}
+            <span className="text-green-300 font-semibold">{formatNumber(banditSummary.fuseDecisions)}</span>{' '}
+            Fusionen ·{' '}
+            <span className="text-orange-300 font-semibold">{formatNumber(banditSummary.skipDecisions)}</span>{' '}
+            Aussetzer
+          </div>
+          <button
+            type="button"
+            onClick={refreshBanditSummary}
+            className="self-start md:self-auto px-3 py-1.5 rounded-md border border-slate-600 text-slate-200 hover:bg-slate-700 transition-colors"
+          >
+            Bandit-Status aktualisieren
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
