@@ -41,6 +41,9 @@ import {
 } from './mechanicEngine';
 import { buildShuffledDeck, getRandomCardTemplate } from './cardCatalogService';
 import { computeWilsonStatsGpu } from './gpuAcceleration';
+import { RKFusionEngine } from './runenkrieg/RKFusionEngine';
+import { BanditPolicy } from './runenkrieg/policy/BanditPolicy';
+import type { FusionDecision as RKFusionDecision, RKFusionOutcome } from './runenkrieg/policy/RKFusionPolicy';
 
 const WILSON_Z = 1.96;
 
@@ -77,50 +80,7 @@ const createCardTemplate = (label: string, idSuffix: string): Card => {
 
 const abilityIndex = (value: ValueType) => ABILITIES.indexOf(value);
 
-let fusionIdCounter = 0;
 let generatedCardCounter = 0;
-
-const determineFusionElement = (first: Card, second: Card): ElementType => {
-    const synergy = ELEMENT_SYNERGIES.find(
-        (entry) => entry.elements.includes(first.element) && entry.elements.includes(second.element)
-    );
-
-    if (synergy) {
-        return first.element === synergy.elements[0] ? first.element : second.element;
-    }
-
-    return abilityIndex(first.wert) >= abilityIndex(second.wert) ? first.element : second.element;
-};
-
-const createFusionCard = (primary: Card, secondary: Card): Card => {
-    const combinedIndex = Math.min(
-        abilityIndex(primary.wert) + abilityIndex(secondary.wert),
-        ABILITIES.length - 1
-    );
-    const fusedValue = ABILITIES[combinedIndex];
-    const fusedElement = determineFusionElement(primary, secondary);
-    const mechanicsToMerge: AbilityMechanicName[] = [
-        ...primary.mechanics,
-        ...secondary.mechanics,
-        'Fusion' as AbilityMechanicName,
-    ];
-    const mergedMechanics = Array.from(new Set(mechanicsToMerge));
-    const fusionCardType = primary.cardType === secondary.cardType ? primary.cardType : 'Beschwörung';
-    const maxLifespan = Math.max(primary.lifespan ?? 0, secondary.lifespan ?? 0);
-    const fusedLifespan = maxLifespan > 0 ? maxLifespan + 1 : undefined;
-    const totalCharges = (primary.charges ?? 0) + (secondary.charges ?? 0);
-    const fusedCharges = totalCharges > 0 ? totalCharges : undefined;
-
-    return {
-        element: fusedElement,
-        wert: fusedValue,
-        id: `fusion-${fusionIdCounter++}`,
-        cardType: fusionCardType,
-        mechanics: mergedMechanics,
-        lifespan: fusedLifespan,
-        charges: fusedCharges,
-    };
-};
 
 const generateReplacementCard = (ownerLabel: 'spieler' | 'gegner'): Card => {
     const template = getRandomCardTemplate();
@@ -150,152 +110,6 @@ const createHandSignature = (hand: Card[]) =>
         .map((card) => `${card.element}-${card.wert}`)
         .sort()
         .join('|');
-
-const computeHistoryPressure = (history: GameHistoryEntry[], actor: 'spieler' | 'gegner') => {
-    const recent = history.slice(-3);
-    return recent.reduce((pressure, entry) => {
-        if (entry.winner === 'unentschieden') {
-            return pressure;
-        }
-        const actorWinner = actor === 'spieler' ? 'spieler' : 'gegner';
-        return entry.winner === actorWinner ? pressure - 0.2 : pressure + 0.3;
-    }, 0);
-};
-
-interface FusionDecisionContext {
-    hand: Card[];
-    hero: HeroName;
-    opponentHero: HeroName;
-    weather: WeatherType;
-    ownerTokens: number;
-    opponentTokens: number;
-    history: GameHistoryEntry[];
-    actor: 'spieler' | 'gegner';
-}
-
-const autoFuseIfBeneficial = (
-    context: FusionDecisionContext
-): { fused: boolean; record: FusionDecisionSample } => {
-    const fusionCandidates = context.hand
-        .map((card, index) => ({ card, index }))
-        .filter((entry) => entry.card.mechanics.includes('Fusion'));
-
-    const handSignature = createHandSignature(context.hand);
-    const historyPressure = computeHistoryPressure(context.history, context.actor);
-    const tokenDelta = context.ownerTokens - context.opponentTokens;
-    const baseRecord: FusionDecisionSample = {
-        actor: context.actor,
-        hero: context.hero,
-        opponentHero: context.opponentHero,
-        weather: context.weather,
-        tokenDelta,
-        handSignature,
-        fusedCard: null,
-        gain: 0,
-        synergyScore: 0,
-        weatherScore: 0,
-        historyPressure,
-        decision: 'skip',
-    };
-
-    if (fusionCandidates.length < 2) {
-        return { fused: false, record: baseRecord };
-    }
-
-    let bestPair:
-        | {
-              indices: [number, number];
-              fused: Card;
-              baseGain: number;
-              elementSynergy: number;
-              synergyScore: number;
-              weatherScore: number;
-              heroBonus: number;
-              tokenPressure: number;
-              totalScore: number;
-          }
-        | null = null;
-
-    for (let i = 0; i < fusionCandidates.length - 1; i++) {
-        for (let j = i + 1; j < fusionCandidates.length; j++) {
-            const first = fusionCandidates[i];
-            const second = fusionCandidates[j];
-            const fusedCard = createFusionCard(first.card, second.card);
-            const fusedAbilityIndex = abilityIndex(fusedCard.wert);
-            const baseGain = fusedAbilityIndex - Math.max(abilityIndex(first.card.wert), abilityIndex(second.card.wert));
-            const elementSynergy = first.card.element === second.card.element ? 0.5 : 0;
-            const remainingHand = context.hand.filter((_, index) => index !== first.index && index !== second.index);
-            const synergyScore = evaluateElementSynergy(
-                fusedCard,
-                remainingHand,
-                context.history,
-                context.actor === 'spieler' ? 'player' : 'ai'
-            );
-            const weatherScore = evaluateRiskAndWeather(
-                fusedCard,
-                context.ownerTokens,
-                context.opponentTokens,
-                context.weather
-            );
-            const heroBonus = HEROES[context.hero].Element === fusedCard.element ? HEROES[context.hero].Bonus : 0;
-            const tokenPressure = (context.opponentTokens - context.ownerTokens) * 0.12;
-            const totalScore =
-                baseGain +
-                elementSynergy +
-                synergyScore * 0.5 +
-                weatherScore * 0.35 +
-                heroBonus * 0.25 +
-                historyPressure +
-                tokenPressure;
-
-            if (!bestPair || totalScore > bestPair.totalScore) {
-                bestPair = {
-                    indices: [first.index, second.index],
-                    fused: fusedCard,
-                    baseGain,
-                    elementSynergy,
-                    synergyScore,
-                    weatherScore,
-                    heroBonus,
-                    tokenPressure,
-                    totalScore,
-                };
-            }
-        }
-    }
-
-    if (!bestPair) {
-        return { fused: false, record: baseRecord };
-    }
-
-    baseRecord.fusedCard = `${bestPair.fused.element} ${bestPair.fused.wert}`;
-    baseRecord.gain = bestPair.totalScore;
-    baseRecord.synergyScore = bestPair.synergyScore + bestPair.elementSynergy;
-    baseRecord.weatherScore = bestPair.weatherScore;
-
-    let threshold = 1;
-    threshold -= Math.min(0.6, Math.max(0, bestPair.tokenPressure));
-    threshold -= Math.min(0.4, Math.max(0, historyPressure));
-    if (context.actor === 'gegner') {
-        threshold += 0.1;
-    }
-    if (context.history.length < 2) {
-        threshold += 0.05;
-    }
-    threshold = Math.max(0.2, threshold);
-
-    if (bestPair.totalScore >= threshold) {
-        const indices = [...bestPair.indices].sort((a, b) => b - a);
-        indices.forEach((index) => {
-            context.hand.splice(index, 1);
-        });
-        context.hand.push(bestPair.fused);
-        baseRecord.decision = 'fuse';
-        return { fused: true, record: baseRecord };
-    }
-
-    return { fused: false, record: baseRecord };
-};
 
 const scoreCardForSelection = (
     card: Card,
@@ -1082,6 +896,7 @@ export async function simulateGames(
 
     const allData: RoundResult[] = [];
     const heroNames = Object.keys(HEROES) as HeroName[];
+    const simFusionEngine = new RKFusionEngine(new BanditPolicy());
 
     for (let i = 0; i < numGames; i++) {
         ensureSimulationNotAborted(signal);
@@ -1114,48 +929,81 @@ export async function simulateGames(
             ] as WeatherType;
 
             const roundFusionDecisions: FusionDecisionSample[] = [];
+            const currentRoundDecisions: { actor: 'spieler' | 'gegner'; decision: RKFusionDecision }[] = [];
 
-            let playerFused = false;
-            while (true) {
-                const result = autoFuseIfBeneficial({
-                    hand: playerHand,
-                    hero: playerHero,
-                    opponentHero: aiHero,
-                    weather,
-                    ownerTokens: playerTokens,
-                    opponentTokens: aiTokens,
-                    history,
+            const playerFusionResult = simFusionEngine.decideAndExecute(
+                playerHand,
+                playerHero,
+                aiHero,
+                playerTokens,
+                aiTokens,
+                weather,
+                roundsPlayed + 1,
+                history,
+                'spieler'
+            );
+
+            playerHand = playerFusionResult.updatedHand;
+            if (playerFusionResult.decision) {
+                currentRoundDecisions.push({ actor: 'spieler', decision: playerFusionResult.decision });
+                roundFusionDecisions.push({
                     actor: 'spieler',
+                    hero: playerFusionResult.decision.ctx.hero,
+                    opponentHero: playerFusionResult.decision.ctx.opponentHero,
+                    weather: playerFusionResult.decision.ctx.weather,
+                    tokenDelta: playerFusionResult.decision.ctx.boardSummary.tokenDelta,
+                    handSignature: createHandSignature(playerFusionResult.updatedHand),
+                    fusedCard: playerFusionResult.fusedCard
+                        ? `${playerFusionResult.fusedCard.element} ${playerFusionResult.fusedCard.wert}`
+                        : null,
+                    gain: playerFusionResult.decision.ctx.candidate.projectedGain,
+                    decision: playerFusionResult.decision.action,
+                    synergyScore:
+                        playerFusionResult.decision.ctx.candidate.synergyScore +
+                        playerFusionResult.decision.ctx.candidate.elementSynergy,
+                    weatherScore: playerFusionResult.decision.ctx.candidate.weatherScore,
+                    historyPressure: playerFusionResult.decision.ctx.boardSummary.ownMorale,
                 });
-                roundFusionDecisions.push(result.record);
-                if (!result.fused) {
-                    break;
-                }
-                playerFused = true;
             }
-            if (playerFused) {
+            if (playerFusionResult.isFused) {
                 ensureHandSize(playerHand, talon, 'spieler');
             }
 
-            let aiFused = false;
-            while (true) {
-                const result = autoFuseIfBeneficial({
-                    hand: aiHand,
-                    hero: aiHero,
-                    opponentHero: playerHero,
-                    weather,
-                    ownerTokens: aiTokens,
-                    opponentTokens: playerTokens,
-                    history,
+            const aiFusionResult = simFusionEngine.decideAndExecute(
+                aiHand,
+                aiHero,
+                playerHero,
+                aiTokens,
+                playerTokens,
+                weather,
+                roundsPlayed + 1,
+                history,
+                'gegner'
+            );
+
+            aiHand = aiFusionResult.updatedHand;
+            if (aiFusionResult.decision) {
+                currentRoundDecisions.push({ actor: 'gegner', decision: aiFusionResult.decision });
+                roundFusionDecisions.push({
                     actor: 'gegner',
+                    hero: aiFusionResult.decision.ctx.hero,
+                    opponentHero: aiFusionResult.decision.ctx.opponentHero,
+                    weather: aiFusionResult.decision.ctx.weather,
+                    tokenDelta: aiFusionResult.decision.ctx.boardSummary.tokenDelta,
+                    handSignature: createHandSignature(aiFusionResult.updatedHand),
+                    fusedCard: aiFusionResult.fusedCard
+                        ? `${aiFusionResult.fusedCard.element} ${aiFusionResult.fusedCard.wert}`
+                        : null,
+                    gain: aiFusionResult.decision.ctx.candidate.projectedGain,
+                    decision: aiFusionResult.decision.action,
+                    synergyScore:
+                        aiFusionResult.decision.ctx.candidate.synergyScore +
+                        aiFusionResult.decision.ctx.candidate.elementSynergy,
+                    weatherScore: aiFusionResult.decision.ctx.candidate.weatherScore,
+                    historyPressure: aiFusionResult.decision.ctx.boardSummary.ownMorale,
                 });
-                roundFusionDecisions.push(result.record);
-                if (!result.fused) {
-                    break;
-                }
-                aiFused = true;
             }
-            if (aiFused) {
+            if (aiFusionResult.isFused) {
                 ensureHandSize(aiHand, talon, 'gegner');
             }
 
@@ -1221,6 +1069,27 @@ export async function simulateGames(
 
             playerTokens = Math.max(0, playerTokens);
             aiTokens = Math.max(0, aiTokens);
+
+            const playerTokensAfter = playerTokens;
+            const aiTokensAfter = aiTokens;
+            const finalTokenDiff = playerTokensAfter - aiTokensAfter;
+            const baseOutcome =
+                winner === 'spieler' ? 'self' : winner === 'gegner' ? 'opponent' : 'draw';
+
+            for (const { actor, decision } of currentRoundDecisions) {
+                const adjustedOutcome: RKFusionOutcome = {
+                    roundWinner:
+                        actor === 'spieler'
+                            ? baseOutcome
+                            : baseOutcome === 'self'
+                            ? 'opponent'
+                            : baseOutcome === 'opponent'
+                            ? 'self'
+                            : 'draw',
+                    tokenChange: actor === 'spieler' ? finalTokenDiff : -finalTokenDiff,
+                };
+                simFusionEngine.learn(decision, adjustedOutcome);
+            }
 
             allData.push({
                 spieler_karte: `${playerCard.element} ${playerCard.wert}`,
