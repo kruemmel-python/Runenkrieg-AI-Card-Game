@@ -1,27 +1,15 @@
-
-import React, { useState } from 'react';
+import { useState } from 'react';
 import GameBoard from './components/GameBoard';
 import TrainingDashboard from './components/TrainingDashboard';
-import ChessArena from './components/ChessArena';
-import ArcadeShooterArena from './components/ArcadeShooterArena';
 
-type View = 'card' | 'training' | 'chess' | 'shooter';
+export type AppView = 'card' | 'training';
 
-function App() {
-  const [currentView, setCurrentView] = useState<View>('card');
+export default function App() {
+  const [currentView, setCurrentView] = useState<AppView>('card');
 
-  const handleSwitchView = (view: View) => {
-    setCurrentView(view);
-  };
-
-  return (
-    <div className="App">
-      {currentView === 'card' && <GameBoard onSwitchView={handleSwitchView} />}
-      {currentView === 'training' && <TrainingDashboard onSwitchView={handleSwitchView} />}
-      {currentView === 'chess' && <ChessArena onSwitchView={handleSwitchView} />}
-      {currentView === 'shooter' && <ArcadeShooterArena onSwitchView={handleSwitchView} />}
-    </div>
+  return currentView === 'training' ? (
+    <TrainingDashboard onSwitchView={setCurrentView} />
+  ) : (
+    <GameBoard onSwitchView={setCurrentView} />
   );
 }
-
-export default App;
