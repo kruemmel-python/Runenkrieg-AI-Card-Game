@@ -1,19 +1,15 @@
 import type {
-  ChessSimulationResult,
   RoundResult,
-  SerializedChessModel,
   SerializedRunenkriegModel,
-  SerializedShooterModel,
-  ShooterSimulationResult,
-  ShooterDifficulty,
   TrainedModel,
   TrainingProgressUpdate,
   TrainingRunOptions,
-  TrainedChessModel,
 } from '../types';
-import { hydrateTrainedModel } from './trainingService';
-import { hydrateChessModel } from './chessTrainingService';
-import { hydrateShooterModel } from './shooterAiService';
+import {
+  hydrateTrainedModel,
+  simulateGames,
+  trainModel,
+} from './trainingService';
 
 interface RunenkriegSimulationOptions {
   chunkSize?: number;
@@ -22,24 +18,6 @@ interface RunenkriegSimulationOptions {
 }
 
 interface RunenkriegTrainingOptions extends TrainingRunOptions {}
-
-interface ChessSimulationOptions {
-  maxPlies?: number;
-  randomness?: number;
-  onProgress?: (completed: number, total: number) => void;
-}
-
-interface ChessTrainingOptions extends TrainingRunOptions {}
-
-interface ShooterSimulationOptions {
-  difficulty: ShooterDifficulty;
-  onProgress?: (completed: number, total: number) => void;
-  seed?: string;
-}
-
-interface ShooterTrainingOptions {
-  onProgress?: (progress: number) => void;
-}
 
 interface WorkerResultMessage<Result> {
   id: string;
@@ -64,159 +42,179 @@ type WorkerMessage<Result, Progress> =
   | WorkerProgressMessage<Progress>
   | WorkerErrorMessage;
 
-const RUNENKRIEG_WORKER_URL = new URL('../workers/runenkriegWorker.ts', import.meta.url);
-const CHESS_WORKER_URL = new URL('../workers/chessWorker.ts', import.meta.url);
-const SHOOTER_WORKER_URL = new URL('../workers/shooterWorker.ts', import.meta.url);
+const RUNENKRIEG_WORKER_URL = new URL(
+  '../workers/runenkriegWorker.ts',
+  import.meta.url,
+);
 
 let workerIdCounter = 0;
 
-const generateWorkerRequestId = () => {
+const generateWorkerRequestId = (): string => {
   workerIdCounter += 1;
-  return `task-${Date.now()}-${workerIdCounter}`;
+  return `runenkrieg-${Date.now()}-${workerIdCounter}`;
 };
 
 function runWorkerTask<Result, Progress>(
-  workerUrl: URL,
-  action: string,
+  action: 'simulate' | 'train',
   payload: unknown,
-  onProgress?: (progress: Progress) => void
+  onProgress?: (progress: Progress) => void,
 ): Promise<Result> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(workerUrl, { type: 'module' });
-    const requestId = generateWorkerRequestId();
+    let worker: Worker;
 
-    const cleanup = () => {
+    try {
+      worker = new Worker(RUNENKRIEG_WORKER_URL, { type: 'module' });
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    const requestId = generateWorkerRequestId();
+    let settled = false;
+
+    const cleanup = (): void => {
       worker.terminate();
     };
 
-    worker.onmessage = (event: MessageEvent<WorkerMessage<Result, Progress>>) => {
+    const fail = (error: Error): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+
+    worker.onmessage = (
+      event: MessageEvent<WorkerMessage<Result, Progress>>,
+    ): void => {
       const message = event.data;
       if (!message || message.id !== requestId) {
         return;
       }
 
-      if (message.type === 'progress') {
-        onProgress?.(message.progress);
-        return;
-      }
+      switch (message.type) {
+        case 'progress':
+          onProgress?.(message.progress);
+          break;
 
-      if (message.type === 'result') {
-        cleanup();
-        resolve(message.result);
-        return;
-      }
+        case 'result':
+          if (settled) {
+            return;
+          }
+          settled = true;
+          cleanup();
+          resolve(message.result);
+          break;
 
-      if (message.type === 'error') {
-        cleanup();
-        const error = new Error(message.error?.message ?? 'Unbekannter Fehler im Hintergrundprozess.');
-        if (message.error?.stack) {
-          error.stack = message.error.stack;
+        case 'error': {
+          const error = new Error(
+            message.error?.message ??
+              'Unbekannter Fehler im Runenkrieg-Hintergrundprozess.',
+          );
+          if (message.error?.stack) {
+            error.stack = message.error.stack;
+          }
+          fail(error);
+          break;
         }
-        reject(error);
       }
     };
 
-    worker.onerror = (event) => {
-      cleanup();
-      reject(new Error(event.message ?? 'Worker-Fehler'));
+    worker.onerror = (event): void => {
+      fail(new Error(event.message || 'Runenkrieg-Worker konnte nicht geladen werden.'));
     };
 
     worker.postMessage({ id: requestId, action, payload });
   });
 }
 
+const simulateDirectly = (
+  count: number,
+  options: RunenkriegSimulationOptions,
+): Promise<RoundResult[]> =>
+  simulateGames(count, {
+    chunkSize: options.chunkSize,
+    yieldDelayMs: options.yieldDelayMs,
+    onProgress: options.onProgress,
+  });
+
+const trainDirectly = (
+  rounds: RoundResult[],
+  options: RunenkriegTrainingOptions,
+): Promise<TrainedModel> =>
+  trainModel(rounds, {
+    preferGpu: options.preferGpu,
+    baseModel: options.baseModel,
+    onProgress: options.onProgress,
+  });
+
 export const runRunenkriegSimulation = async (
   count: number,
-  options: RunenkriegSimulationOptions = {}
+  options: RunenkriegSimulationOptions = {},
 ): Promise<RoundResult[]> => {
-  const result = await runWorkerTask<RoundResult[], { completed: number; total: number }>(
-    RUNENKRIEG_WORKER_URL,
-    'simulate',
-    { count, options: { chunkSize: options.chunkSize, yieldDelayMs: options.yieldDelayMs } },
-    (progress) => {
-      options.onProgress?.(progress.completed, progress.total);
-    }
-  );
-  return result;
+  if (typeof Worker === 'undefined') {
+    return simulateDirectly(count, options);
+  }
+
+  try {
+    return await runWorkerTask<
+      RoundResult[],
+      { completed: number; total: number }
+    >(
+      'simulate',
+      {
+        count,
+        options: {
+          chunkSize: options.chunkSize,
+          yieldDelayMs: options.yieldDelayMs,
+        },
+      },
+      (progress) => {
+        options.onProgress?.(progress.completed, progress.total);
+      },
+    );
+  } catch (error) {
+    console.warn(
+      'Runenkrieg-Worker nicht verfügbar; Simulation läuft im Hauptprozess weiter.',
+      error,
+    );
+    return simulateDirectly(count, options);
+  }
 };
 
 export const runRunenkriegTraining = async (
   rounds: RoundResult[],
-  options: RunenkriegTrainingOptions = {}
+  options: RunenkriegTrainingOptions = {},
 ): Promise<TrainedModel> => {
-  const serialized = await runWorkerTask<SerializedRunenkriegModel, TrainingProgressUpdate>(
-    RUNENKRIEG_WORKER_URL,
-    'train',
-    { rounds, options: { preferGpu: options.preferGpu, baseModel: options.baseModel } },
-    (progress) => {
-      options.onProgress?.(progress);
-    }
-  );
+  if (typeof Worker === 'undefined') {
+    return trainDirectly(rounds, options);
+  }
 
-  return hydrateTrainedModel(serialized);
-};
+  try {
+    const serialized = await runWorkerTask<
+      SerializedRunenkriegModel,
+      TrainingProgressUpdate
+    >(
+      'train',
+      {
+        rounds,
+        options: {
+          preferGpu: options.preferGpu,
+          baseModel: options.baseModel,
+        },
+      },
+      (progress) => {
+        options.onProgress?.(progress);
+      },
+    );
 
-export const runChessSimulation = async (
-  count: number,
-  options: ChessSimulationOptions = {}
-): Promise<ChessSimulationResult[]> => {
-  const result = await runWorkerTask<ChessSimulationResult[], { completed: number; total: number }>(
-    CHESS_WORKER_URL,
-    'simulate',
-    { count, options: { maxPlies: options.maxPlies, randomness: options.randomness } },
-    (progress) => {
-      options.onProgress?.(progress.completed, progress.total);
-    }
-  );
-
-  return result;
-};
-
-export const runChessTraining = async (
-  simulations: ChessSimulationResult[],
-  options: ChessTrainingOptions = {}
-): Promise<TrainedChessModel> => {
-  const serialized = await runWorkerTask<SerializedChessModel, TrainingProgressUpdate>(
-    CHESS_WORKER_URL,
-    'train',
-    { simulations, options: { preferGpu: options.preferGpu } },
-    (progress) => {
-      options.onProgress?.(progress);
-    }
-  );
-
-  return hydrateChessModel(serialized);
-};
-
-export const runShooterSimulation = async (
-  count: number,
-  options: ShooterSimulationOptions
-): Promise<ShooterSimulationResult[]> => {
-  const { difficulty, seed } = options;
-  const result = await runWorkerTask<ShooterSimulationResult[], { completed: number; total: number }>(
-    SHOOTER_WORKER_URL,
-    'simulate',
-    { count, options: { difficulty, seed } },
-    (progress) => {
-      options.onProgress?.(progress.completed, progress.total);
-    }
-  );
-
-  return result;
-};
-
-export const runShooterTraining = async (
-  simulations: ShooterSimulationResult[],
-  options: ShooterTrainingOptions = {}
-) => {
-  const serialized = await runWorkerTask<SerializedShooterModel, number>(
-    SHOOTER_WORKER_URL,
-    'train',
-    { simulations },
-    (progress) => {
-      options.onProgress?.(progress);
-    }
-  );
-
-  return hydrateShooterModel(serialized);
+    return hydrateTrainedModel(serialized);
+  } catch (error) {
+    console.warn(
+      'Runenkrieg-Worker nicht verfügbar; Training läuft im Hauptprozess weiter.',
+      error,
+    );
+    return trainDirectly(rounds, options);
+  }
 };
