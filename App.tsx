@@ -2,14 +2,14 @@ import { useState } from 'react';
 import GameBoard from './components/GameBoard';
 import TrainingDashboard from './components/TrainingDashboard';
 
-export type AppView = 'card' | 'training';
+export type AppView = 'card' | 'training' | 'chess' | 'shooter';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('card');
 
-  return currentView === 'training' ? (
-    <TrainingDashboard onSwitchView={setCurrentView} />
-  ) : (
-    <GameBoard onSwitchView={setCurrentView} />
-  );
+  if (currentView === 'training') {
+    return <TrainingDashboard onSwitchView={setCurrentView} />;
+  }
+
+  return <GameBoard onSwitchView={setCurrentView} />;
 }
