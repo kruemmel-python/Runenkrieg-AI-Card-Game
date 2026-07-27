@@ -1,0 +1,58 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/android-apk
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Java einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Abhängigkeiten installieren
+        run: npm install
+
+      - name: Web-Anwendung bauen
+        run: npm run build
+
+      - name: Android-Projekt erzeugen
+        run: npx cap add android
+
+      - name: Web-Bundle synchronisieren
+        run: npx cap sync android
+
+      - name: Debug-APK bauen
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: APK als Artefakt bereitstellen
+        uses: actions/upload-artifact@v4
+        with:
+          name: runenkrieg-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
